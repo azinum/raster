@@ -5,6 +5,10 @@
 	background-color: #202020;
 }
 
+:fullscreen {
+  background-color: black;
+}
+
 #main-canvas:hover { cursor: pointer; }
 #main-canvas {
 	image-rendering: pixelated;

@@ -8,6 +8,27 @@ inline f32 ease_in_cubic(f32 x) {
   return x * x * x;
 }
 
+inline f32 v2_dot(v2 a, v2 b) {
+  return (a.x * b.x) + (a.y * b.y);
+}
+
+inline f32 v2_length(v2 a) {
+  return square_root(v2_length_square(a));
+}
+
+inline v2 v2_normalize(v2 a) {
+  v2 result = {0};
+  f32 length = v2_length(a);
+  if (length != 0) {
+    result.x = a.x * (1.0f / length);
+    result.y = a.y * (1.0f / length);
+  }
+  return result;
+}
+
+inline f32 v2_length_square(v2 a) {
+  return v2_dot(a, a);
+}
 
 inline v2 v2_ease_in_cubic(v2 a) {
   return V2(

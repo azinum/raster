@@ -19,17 +19,67 @@
 typedef struct Game {
   i32 x;
   i32 y;
+  size_t tick;
+  f32 timer;
 } Game;
 
 Game game = {
   .x = 0,
   .y = 0,
+  .tick = 0,
+  .timer = 0,
 };
 
-const u32 WINDOW_WIDTH = 800;
-const u32 WINDOW_HEIGHT = 600;
+const u32 WINDOW_WIDTH = 800 / 2;
+const u32 WINDOW_HEIGHT = 600 / 2;
 u32 BUFFER[WINDOW_WIDTH * WINDOW_HEIGHT] = {0};
 u32 CLEAR_BUFFER[WINDOW_WIDTH * WINDOW_HEIGHT] = {0};
+
+static f32 x_offset = 0;
+static f32 y_offset = 0;
+
+i32 KEY_UNDEFINED = 0;
+i32 KEY_SPACE = 1;
+i32 KEY_LEFT_ARROW = 2;
+i32 KEY_UP_ARROW = 3;
+i32 KEY_RIGHT_ARROW = 4;
+i32 KEY_DOWN_ARROW = 5;
+i32 KEY_0 = 6;
+i32 KEY_1 = 7;
+i32 KEY_2 = 8;
+i32 KEY_3 = 9;
+i32 KEY_4 = 10;
+i32 KEY_5 = 11;
+i32 KEY_6 = 12;
+i32 KEY_7 = 13;
+i32 KEY_8 = 14;
+i32 KEY_9 = 15;
+i32 KEY_A = 16;
+i32 KEY_B = 17;
+i32 KEY_C = 18;
+i32 KEY_D = 19;
+i32 KEY_E = 20;
+i32 KEY_F = 21;
+i32 KEY_G = 22;
+i32 KEY_H = 23;
+i32 KEY_I = 24;
+i32 KEY_J = 25;
+i32 KEY_K = 26;
+i32 KEY_L = 27;
+i32 KEY_M = 28;
+i32 KEY_N = 29;
+i32 KEY_O = 30;
+i32 KEY_P = 31;
+i32 KEY_Q = 32;
+i32 KEY_R = 33;
+i32 KEY_S = 34;
+i32 KEY_T = 35;
+i32 KEY_U = 36;
+i32 KEY_V = 37;
+i32 KEY_W = 38;
+i32 KEY_X = 39;
+i32 KEY_Y = 40;
+i32 KEY_Z = 41;
 
 void init(void);
 void mouse_click(i32 x, i32 y);
@@ -48,17 +98,38 @@ void init(void) {
 void mouse_click(i32 x, i32 y) {
   game.x = x;
   game.y = y;
-  printf("x: %d, y: %d\n", x, y);
 }
 
 void input_event(i32 code) {
-
+  if (code == KEY_R) {
+    x_offset = random_f32() * 1000;
+    y_offset = random_f32() * 1000;
+  }
 }
 
 void update_and_render(double dt) {
   i32 fps = (i32)(1.0f / dt);
   render_clear();
-  render_fill_rect(game.x, game.y, 32, 32, COLOR_RGBA(255, 0, 0, 255));
+  render_fill_rect_gradient(
+    game.x,
+    game.y,
+    128, 128,
+    COLOR_RGBA(255, 0, 0, 255),
+    COLOR_RGBA(0, 0, 0, 0),
+    V2(0.0f, 1.0f),
+    V2(0.0f, 1.0f)
+  );
+  render_fill_rect_gradient(
+    100,
+    50,
+    64, 64,
+    COLOR_RGBA(255, 0, 0, 255),
+    COLOR_RGBA(0, 0, 0, 0),
+    V2(0.0f, 1.0f),
+    V2(0, 1.0f)
+  );
+  game.tick += 1;
+  game.timer += dt;
 }
 
 u32 display_get_width(void) {

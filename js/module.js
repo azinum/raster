@@ -108,6 +108,13 @@ const key_map = [
 	KEY_Z,
 ];
 
+let options = {
+	rasterWidth: 0,
+	rasterHeight: 0,
+	displayWidth: 0,
+	displayHeight: 0,
+}
+
 function str_length(memory, ptr) {
 	let length = 0;
 	while (memory[ptr] != 0) {
@@ -169,8 +176,16 @@ function fullscreen() {
 		canvas.width = width;
 		canvas.height = height;
 		context.imageSmoothingEnabled = false;
+		options.rasterWidth = width;
+		options.rasterHeight = height;
+		options.displayWidth = canvas.clientWidth;
+		options.displayHeight = canvas.clientHeight;
 		canvas.addEventListener("mousedown", e => {
-			instance.exports.mouse_click(e.offsetX, e.offsetY);
+			options.displayWidth = canvas.clientWidth;
+			options.displayHeight = canvas.clientHeight;
+			let xFactor = options.rasterWidth / options.displayWidth;
+			let yFactor = options.rasterHeight / options.displayHeight;
+			instance.exports.mouse_click(e.offsetX * xFactor, e.offsetY * yFactor);
 		});
 		document.addEventListener("keydown", e => {
 			if (e.which >= 32 && e.which <= 90) {

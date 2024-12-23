@@ -59,6 +59,10 @@ typedef union m4 {
 
 extern f32 sigmoid(f32 x);
 extern f32 ease_in_cubic(f32 x);
+extern f32 v2_dot(v2 a, v2 b);
+extern f32 v2_length(v2 a);
+extern f32 v2_length_square(v2 a);
+extern v2 v2_normalize(v2 a);
 extern v2 v2_ease_in_cubic(v2 a);
 extern m4 m4d(f32 value);
 extern f32 v3_dot(v3 a, v3 b);
