@@ -1,1 +1,31 @@
 /* style.css */
+
+*, body, html {
+	color: #ededff;
+	background-color: #202020;
+}
+
+#main-canvas:hover { cursor: pointer; }
+#main-canvas {
+	image-rendering: pixelated;
+}
+
+.canvas-border {
+	width: 800px;
+	height: 600px;
+}
+
+.canvas-container {
+	margin: 0 auto;
+	text-align: center;
+	padding: 2em;
+}
+
+h1, h2, h3, h4, h5, p { padding: 0.5em; }
+
+h1 { font-size: 2.6em; }
+h2 { font-size: 2.2em; }
+h3 { font-size: 1.8em; }
+h4 { font-size: 1.6em; }
+h5 { font-size: 1.2em; }
+p  { font-size: 1.0em; }
