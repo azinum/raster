@@ -47,6 +47,15 @@ typedef union m4 {
 #define v2_zero V2(0, 0)
 #define v3_zero V3(0, 0, 0)
 
+#define SIGN(T, x) ((T)((x) > 0) - (T)((x) < 0))
+#define ABS(T, x) (SIGN(T, x) * (x))
+
+#define SWAP(A, B) { \
+  __typeof__(A) temp = A; \
+  A = B; \
+  B = temp; \
+}
+
 #ifdef NO_MATH
   extern f32 sinf(f32 n);
   extern f32 cosf(f32 n);

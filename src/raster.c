@@ -128,6 +128,16 @@ void update_and_render(double dt) {
     V2(0.0f, 1.0f),
     V2(0, 1.0f)
   );
+  {
+    i32 x = 40;
+    i32 y = 100;
+    i32 len = 20;
+    render_line(x, y, x + len * cosf(game.timer), y + len * sinf(game.timer), COLOR_RGB(255, 20, 140));
+    len += 2;
+    y += len + 2;
+    render_line(x + len * cosf(game.timer + 100), y + len * sinf(game.timer + 100), x, y, COLOR_RGB(255, 20, 140));
+  }
+  render_post();
   game.tick += 1;
   game.timer += dt;
 }
