@@ -147,7 +147,7 @@ void render_fill_rect_gradient(i32 x, i32 y, i32 w, i32 h, Color color_start, Co
   for (i32 ry = rect.y, y = 0; ry < rect.y + rect.h; ++ry, ++y) {
     for (i32 rx = rect.x, x = 0; rx < rect.x + rect.w; ++rx, ++x) {
       Color* target = get_pixel_addr(rx, ry);
-      uv = V2(x / (f32)w, y / (f32)h);
+      uv = V2(x / (f32)w - 1, y / (f32)h - 1);
       f32 a = v2_dot(uv, gradient_start);
       f32 b = v2_dot(uv, gradient_end);
       if (a < b) {

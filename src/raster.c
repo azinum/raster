@@ -113,11 +113,11 @@ void update_and_render(double dt) {
   render_fill_rect_gradient(
     game.x,
     game.y,
-    128, 128,
+    32, 128,
     COLOR_RGBA(255, 0, 0, 255),
     COLOR_RGBA(0, 0, 0, 0),
-    V2(0.0f, 1.0f),
-    V2(0.0f, 1.0f)
+    V2(0.0f, -1.0f),
+    V2(0.0f, -1.0f)
   );
   render_fill_rect_gradient(
     100,
