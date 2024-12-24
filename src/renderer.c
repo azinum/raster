@@ -7,6 +7,8 @@ typedef struct Renderer {
   u32 height;
   Blend blend_mode;
   bool dither;
+  i32 num_primitives;         // triangles drawn
+  i32 num_primitives_culled;  // triangles culled
 } Renderer;
 
 static Renderer renderer;
@@ -49,8 +51,8 @@ bool normalize_rect(i32 x, i32 y, i32 w, i32 h, Rect* rect) {
 
   rect->x = CLAMP(x, 0, renderer.width);
   rect->y = CLAMP(y, 0, renderer.height);
-  rect->w = CLAMP(rect->x + w, 0, renderer.width) - rect->x;
-  rect->h = CLAMP(rect->y + h, 0, renderer.height) - rect->y;
+  rect->w = CLAMP(rect->x + w, 0, renderer.width - 1) - rect->x;
+  rect->h = CLAMP(rect->y + h, 0, renderer.height - 1) - rect->y;
   if (rect->w <= 0) { return false; }
   if (rect->h <= 0) { return false; }
   return true;
@@ -67,8 +69,8 @@ bool triangle_bb(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Rect* rect) {
   // clamp to framebuffer edges
   min_x = MAX(min_x, 0);
   min_y = MAX(min_y, 0);
-  max_x = MIN(max_x, (i32)renderer.width);
-  max_y = MIN(max_y, (i32)renderer.height);
+  max_x = MIN(max_x, (i32)renderer.width - 1);
+  max_y = MIN(max_y, (i32)renderer.height - 1);
 
   rect->x1 = min_x;
   rect->y1 = min_y;
@@ -117,10 +119,33 @@ void renderer_init(Color* buffer, Color* clear_buffer, u32 width, u32 height) {
   renderer.height = height;
   renderer.blend_mode = BLEND_NONE;
   renderer.dither = true;
+  renderer.num_primitives = 0;
+  renderer.num_primitives_culled = 0;
 }
 
 void renderer_set_blend_mode(Blend mode) {
   renderer.blend_mode = mode;
+}
+
+void render_rect(i32 x, i32 y, i32 w, i32 h, Color color) {
+  Rect rect = {0};
+  if (!normalize_rect(x, y, w, h, &rect)) {
+    return;
+  }
+  for (i32 rx = rect.x; rx <= rect.x + rect.w; ++rx) {
+    Color* target = NULL;
+    target = get_pixel_addr(rx, rect.y);
+    draw_pixel(target, color);
+    target = get_pixel_addr(rx, rect.y + rect.h);
+    draw_pixel(target, color);
+  }
+  for (i32 ry = rect.y; ry <= rect.y + rect.h; ++ry) {
+    Color* target = NULL;
+    target = get_pixel_addr(rect.x, ry);
+    draw_pixel(target, color);
+    target = get_pixel_addr(rect.x + rect.w, ry);
+    draw_pixel(target, color);
+  }
 }
 
 void render_fill_rect(i32 x, i32 y, i32 w, i32 h, Color color) {
@@ -148,8 +173,8 @@ void render_fill_rect_gradient(i32 x, i32 y, i32 w, i32 h, Color color_start, Co
     for (i32 rx = rect.x, x = 0; rx < rect.x + rect.w; ++rx, ++x) {
       Color* target = get_pixel_addr(rx, ry);
       uv = V2(x / (f32)w - 1, y / (f32)h - 1);
-      f32 a = v2_dot(uv, gradient_start);
-      f32 b = v2_dot(uv, gradient_end);
+      f32 a = -v2_dot(uv, gradient_start);
+      f32 b = -v2_dot(uv, gradient_end);
       if (a < b) {
         draw_pixel(target, lerp_color(color_start, color_end, a));
       }
@@ -238,6 +263,7 @@ void render_fill_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Color 
   bool inside = false;
   Rect bb = {0};
   if (!triangle_bb(x1, y1, x2, y2, x3, y3, &bb)) {
+    renderer.num_primitives_culled += 1;
     return;
   }
 
@@ -250,12 +276,18 @@ void render_fill_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Color 
       }
     }
   }
+  renderer.num_primitives += 1;
 }
 
 void renderer_set_clear_color(Color color) {
   for (i32 i = 0; i < renderer.width * renderer.height; ++i) {
     renderer.clear_buffer[i] = color;
   } 
+}
+
+void renderer_begin(void) {
+  renderer.num_primitives = 0;
+  renderer.num_primitives_culled = 0;
 }
 
 void render_post(void) {
@@ -274,4 +306,12 @@ void render_post(void) {
 
 void render_clear(void) {
   memcpy(renderer.buffer, renderer.clear_buffer, sizeof(Color) * renderer.width * renderer.height);
+}
+
+i32 renderer_get_num_primitives(void) {
+  return renderer.num_primitives;
+}
+
+i32 renderer_get_num_primitives_culled(void) {
+  return renderer.num_primitives_culled;
 }

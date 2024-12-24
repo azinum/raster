@@ -74,12 +74,16 @@ typedef union PackedRect16 {
 
 void renderer_init(Color* buffer, Color* clear_buffer, u32 width, u32 height);
 void renderer_set_blend_mode(Blend mode);
+void render_rect(i32 x, i32 y, i32 w, i32 h, Color color);
 void render_fill_rect(i32 x, i32 y, i32 w, i32 h, Color color);
 void render_fill_rect_gradient(i32 x, i32 y, i32 w, i32 h, Color color_start, Color color_end, v2 gradient_start, v2 gradient_end);
 void render_line(i32 x1, i32 y1, i32 x2, i32 y2, Color color);
 void render_fill_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Color color);
 void renderer_set_clear_color(Color color);
-void render_clear(void);
+void renderer_begin(void);
 void render_post(void);
+void render_clear(void);
+i32 renderer_get_num_primitives(void);
+i32 renderer_get_num_primitives_culled(void);
 
 #endif // _RENDERER_H
