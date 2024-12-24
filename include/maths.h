@@ -50,6 +50,9 @@ typedef union m4 {
 #define SIGN(T, x) ((T)((x) > 0) - (T)((x) < 0))
 #define ABS(T, x) (SIGN(T, x) * (x))
 
+#define MIN3(A, B, C) (((A < B) && (A < C)) ? (A) : ((B < C) ? (B) : C ))
+#define MAX3(A, B, C) (((A > B) && (A > C)) ? (A) : ((B > C) ? (B) : C ))
+
 #define SWAP(A, B) { \
   __typeof__(A) temp = A; \
   A = B; \

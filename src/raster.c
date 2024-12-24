@@ -137,6 +137,12 @@ void update_and_render(double dt) {
     y += len + 2;
     render_line(x + len * cosf(game.timer + 100), y + len * sinf(game.timer + 100), x, y, COLOR_RGB(255, 20, 140));
   }
+
+  {
+    i32 x = 200;
+    i32 y = 100;
+    render_fill_triangle(x, y, x + 40 + 200 * sinf(game.timer * 0.25f), y - 30, x + 20, y + 80, COLOR_RGB(0, 255, 255));
+  }
   render_post();
   game.tick += 1;
   game.timer += dt;
