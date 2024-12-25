@@ -154,7 +154,7 @@ function update_debug_info(wasm, elem, dt) {
 	elem.textContent =
 		wasm.instance.exports.renderer_get_num_primitives() + " primitives | " +
 		wasm.instance.exports.renderer_get_num_primitives_culled() + " primitives culled | " +
-		(1/dt).toFixed(1) + " fps | " + wasm.instance.exports.display_get_width() + "x" + wasm.instance.exports.display_get_height();
+		(dt * 1000).toFixed(2) + " ms | " + wasm.instance.exports.display_get_width() + "x" + wasm.instance.exports.display_get_height();
 }
 
 (async function init() {
@@ -226,7 +226,7 @@ function update_debug_info(wasm, elem, dt) {
 			context.putImageData(frame, 0, 0);
 			window.requestAnimationFrame(frame_step);
 			ticks += 1;
-			if (!(ticks % 4)) {
+			if (!(ticks % 2)) {
 				update_debug_info(wasm, debug_text_elem, dt);
 			}
 		}

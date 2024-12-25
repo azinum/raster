@@ -1,6 +1,8 @@
 // renderer.c
 
-// #define DRAW_BB
+#define DRAW_BB
+#define BB_COLOR COLOR_RGBA(255, 255, 255, 150)
+#define DEBUG_OUT_OF_BOUNDS
 
 typedef struct Renderer {
   Color* buffer;
@@ -24,7 +26,10 @@ static bool bounds_check(Rect rect, i32 x, i32 y);
 static bool fb_bounds_check(i32 x, i32 y);
 static bool barycentric(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, i32 x, i32 y, i32* u1, i32* u2, i32* det);
 
-Color* get_pixel_addr(i32 x, i32 y) {
+inline Color* get_pixel_addr(i32 x, i32 y) {
+#ifndef DEBUG_OUT_OF_BOUNDS
+  ASSERT(x >= 0 && x < renderer.width && y >= 0 && y < renderer.height);
+#endif
   return &renderer.buffer[y * renderer.width + x];
 }
 
@@ -63,10 +68,10 @@ bool normalize_rect(i32 x, i32 y, i32 w, i32 h, Rect* rect) {
 bool triangle_bb(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Rect* rect) {
 
   // triangle bounding box
-  i32 min_x = ABS(i32, MIN3(x1, x2, x3));
-  i32 min_y = ABS(i32, MIN3(y1, y2, y3));
-  i32 max_x = ABS(i32, MAX3(x1, x2, x3));
-  i32 max_y = ABS(i32, MAX3(y1, y2, y3));
+  i32 min_x = MAX(MIN3(x1, x2, x3), 0);
+  i32 min_y = MAX(MIN3(y1, y2, y3), 0);
+  i32 max_x = MAX(MAX3(x1, x2, x3), 0);
+  i32 max_y = MAX(MAX3(y1, y2, y3), 0);
 
   // clamp to framebuffer edges
   min_x = MAX(min_x, 0);
@@ -79,7 +84,7 @@ bool triangle_bb(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Rect* rect) {
   rect->x2 = max_x;
   rect->y2 = max_y;
 
-  return ABS(i32, max_x - min_x) > 0 && ABS(i32, max_y - min_y) > 0;
+  return (max_x - min_x) > 0 && (max_y - min_y) > 0;
 }
 
 Color lerp_color(Color a, Color b, f32 t) {
@@ -251,7 +256,7 @@ void render_fill_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Color 
   }
 
 #ifdef DRAW_BB
-  render_rect(bb.x, bb.y, bb.w - bb.x, bb.h - bb.y, COLOR_RGBA(255, 255, 255, 100));
+  render_rect(bb.x, bb.y, bb.w - bb.x, bb.h - bb.y, BB_COLOR);
 #endif
   for (i32 y = bb.y1; y < bb.y2; ++y) {
     for (i32 x = bb.x1; x < bb.x2; ++x) {
@@ -271,7 +276,7 @@ void render_fill_circle(i32 px, i32 py, i32 r, Color color) {
     return;
   }
 #ifdef DRAW_BB
-  render_rect(rect.x, rect.y, rect.w, rect.h, COLOR_RGBA(255, 255, 255, 100));
+  render_rect(rect.x, rect.y, rect.w, rect.h, BB_COLOR);
 #endif
   for (i32 y = rect.y; y <= rect.y + rect.h; ++y) {
     i32 x = rect.x;

@@ -10,7 +10,7 @@ typedef enum Blend {
   MAX_BLEND_MODE,
 } Blend;
 
-typedef union Color {
+typedef union Color32 {
   u32 value;
   struct {
     u8 r;
@@ -18,7 +18,12 @@ typedef union Color {
     u8 b;
     u8 a;
   };
-} Color;
+} Color32;
+
+typedef Color32 Color;
+
+#define COLOR_RGBA(R, G, B, A) ((Color) { .r = R, .g = G, .b = B, .a = A, })
+#define COLOR_RGB(R, G, B)     ((Color) { .r = R, .g = G, .b = B, .a = 0xff, })
 
 typedef union Rect {
   struct {
@@ -68,8 +73,6 @@ typedef union PackedRect16 {
   };
 } PackedRect16;
 
-#define COLOR_RGBA(R, G, B, A) ((Color) { .r = R, .g = G, .b = B, .a = A, })
-#define COLOR_RGB(R, G, B)     ((Color) { .r = R, .g = G, .b = B, .a = 0xff, })
 #define RECT(X, Y, W, H) (Rect) { .x = X, .y = Y, .w = W, .h = H, }
 
 void renderer_init(Color* buffer, Color* clear_buffer, u32 width, u32 height);

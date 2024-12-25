@@ -10,6 +10,7 @@
 #define RANDOM_IMPLEMENTATION
 #include "random.h"
 
+#include "config.h"
 #include "maths.h"
 #include "renderer.h"
 
@@ -32,10 +33,9 @@ Game game = {
   .paused = false,
 };
 
-const u32 WINDOW_WIDTH = 800 * 0.4;
-const u32 WINDOW_HEIGHT = 600 * 0.4;
-u32 BUFFER[WINDOW_WIDTH * WINDOW_HEIGHT] = {0};
-u32 CLEAR_BUFFER[WINDOW_WIDTH * WINDOW_HEIGHT] = {0};
+Color BUFFER[WINDOW_WIDTH * WINDOW_HEIGHT] = {0};
+Color CLEAR_BUFFER[WINDOW_WIDTH * WINDOW_HEIGHT] = {0};
+f32 ZBUFFER[WINDOW_WIDTH * WINDOW_HEIGHT] = {0};
 
 static f32 x_offset = 0;
 static f32 y_offset = 0;
@@ -89,7 +89,7 @@ void input_event(i32 code);
 void update_and_render(double dt);
 u32 display_get_width(void);
 u32 display_get_height(void);
-u32* display_get_addr(void);
+void* display_get_addr(void);
 
 void init(void) {
   random_init(1234);
@@ -114,6 +114,22 @@ void input_event(i32 code) {
       game.paused = !game.paused;
       break;
     }
+    case KEY_W: {
+      game.y -= 5;
+      break;
+    }
+    case KEY_S: {
+      game.y += 5;
+      break;
+    }
+    case KEY_A: {
+      game.x -= 5;
+      break;
+    }
+    case KEY_D: {
+      game.x += 5;
+      break;
+    }
     default:
       break;
   }
@@ -128,40 +144,10 @@ void update_and_render(double dt) {
   renderer_begin();
   render_clear();
 #if 1
-  render_fill_rect_gradient(
-    100,
-    50,
-    64, 64,
-    COLOR_RGBA(255, 0, 0, 255),
-    COLOR_RGBA(0, 0, 0, 0),
-    V2(0.0f, 1.0f),
-    V2(0, 1.0f)
-  );
-  render_fill_rect_gradient(
-    180,
-    50,
-    18, 24,
-    COLOR_RGBA(255, 0, 0, 255),
-    COLOR_RGBA(0, 0, 255, 255),
-    V2(0.5f, 0.5f),
-    V2(0.5f, 0.5f)
-  );
   {
-    i32 x = 200;
-    i32 y = 200;
-    i32 len = 60;
-    render_line(x, y, x + len * cosf(game.timer), y + len * sinf(game.timer), COLOR_RGB(255, 20, 140));
-    len += 2;
-    y += len + 2;
-    render_line(x + len * cosf(game.timer + 100), y + len * sinf(game.timer + 100), x, y, COLOR_RGB(255, 20, 140));
-  }
-
-  render_fill_circle(game.x, game.y, 32 + 16*sinf(game.timer), COLOR_RGB(255, 255, 255));
-
-  {
-    i32 x = 200;
-    i32 y = 100;
-    render_fill_triangle(x, y, x + 40 + 200 * sinf(game.timer * 0.8f), y - 30, x + 20, y + 80, COLOR_RGB(130, 100, 255));
+    i32 x = game.x;
+    i32 y = game.y;
+    render_fill_triangle(x, y, x + 40, y - 30, x + 20, y + 100, COLOR_RGB(130, 100, 255));
   }
 #endif
   render_post();
@@ -177,6 +163,6 @@ u32 display_get_height(void) {
   return WINDOW_HEIGHT;
 }
 
-u32* display_get_addr(void) {
+void* display_get_addr(void) {
   return &BUFFER[0];
 }
