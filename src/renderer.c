@@ -1,10 +1,12 @@
 // renderer.c
 
+// #define DRAW_BB
+
 typedef struct Renderer {
   Color* buffer;
   Color* clear_buffer;
-  u32 width;
-  u32 height;
+  i32 width;
+  i32 height;
   Blend blend_mode;
   bool dither;
   i32 num_primitives;         // triangles drawn
@@ -49,10 +51,10 @@ bool normalize_rect(i32 x, i32 y, i32 w, i32 h, Rect* rect) {
   if (x >= renderer.width) { return false; }
   if (y >= renderer.height) { return false; }
 
-  rect->x = CLAMP(x, 0, renderer.width);
-  rect->y = CLAMP(y, 0, renderer.height);
-  rect->w = CLAMP(rect->x + w, 0, renderer.width - 1) - rect->x;
-  rect->h = CLAMP(rect->y + h, 0, renderer.height - 1) - rect->y;
+  rect->x = CLAMP(x, 0, renderer.width - 1);
+  rect->y = CLAMP(y, 0, renderer.height - 1);
+  rect->w = CLAMP(x + w, 0, renderer.width - 1) - rect->x;
+  rect->h = CLAMP(y + h, 0, renderer.height - 1) - rect->y;
   if (rect->w <= 0) { return false; }
   if (rect->h <= 0) { return false; }
   return true;
@@ -187,24 +189,43 @@ void render_fill_rect_gradient(i32 x, i32 y, i32 w, i32 h, Color color_start, Co
 
 // TODO: line normalization (clip to bounds, bb check)
 void render_line(i32 x1, i32 y1, i32 x2, i32 y2, Color color) {
-#if 1
   if ((x1 < 0 && x2 < 0) || (x1 >= renderer.width && x2 >= renderer.width)) { return; }
   if ((y1 < 0 && y2 < 0) || (y1 >= renderer.height && y2 >= renderer.height)) { return; }
 
   bool steep = false;
   if (ABS(i32, x1 - x2) < ABS(i32, y1 - y2)) {
     steep = true;
-    SWAP(x1, y1);
-    SWAP(x2, y2);
+    SWAP(i32, x1, y1);
+    SWAP(i32, x2, y2);
   }
   if (x1 > x2) {
-    SWAP(x1, x2);
-    SWAP(y1, y2);
+    SWAP(i32, x1, x2);
+    SWAP(i32, y1, y2);
+  }
+
+  i32 ox1 = x1;
+  i32 oy1 = y1;
+  i32 ox2 = x2;
+  i32 oy2 = y2;
+
+  x1 = CLAMP(x1, 0, renderer.width - 1);
+  y1 = CLAMP(y1, 0, renderer.height - 1);
+  x2 = CLAMP(x2, 0, renderer.width - 1);
+  y2 = CLAMP(y2, 0, renderer.height - 1);
+
+  i32 dx = ox2 - ox1;
+  i32 dy = oy2 - oy1;
+  if (dx == dy && dx == 0) {
+    if (fb_bounds_check(x1, y1)) {
+      Color* target = get_pixel_addr(x1, y1);
+      draw_pixel(target, color);
+      return;
+    }
   }
 
   for (f32 x = x1; x < x2; ++x) {
-    f32 t = (x - x1) / (f32)(x2 - x1);
-    f32 y = y1 * (1.0f - t) + (y2 * t);
+    f32 t = (x - ox1) / (ox2 - ox1);
+    f32 y = oy1 * (1.0f - t) + (oy2 * t);
     if (steep) {
       if (fb_bounds_check(y, x)) {
         Color* target = get_pixel_addr(y, x);
@@ -218,44 +239,6 @@ void render_line(i32 x1, i32 y1, i32 x2, i32 y2, Color color) {
       }
     }
   }
-#else
-  i32 dx = x2 - x1;
-  i32 dy = y2 - y1;
-  if (dx == dy && dx == 0) {
-    if (fb_bounds_check(x1, y1)) {
-      Color* target = get_pixel_addr(x1, y1);
-      draw_pixel(target, color);
-      return;
-    }
-  }
-
-  if (ABS(i32, dx) > ABS(i32, dy)) {
-    if (x1 > x2) {
-      SWAP(x1, x2);
-      SWAP(y1, y2);
-    }
-    for (i32 x = x1; x <= x2; ++x) {
-      i32 y = dy * (x - x1) / dx + y1;
-      if (fb_bounds_check(x, y)) {
-        Color* target = get_pixel_addr(x, y);
-        draw_pixel(target, color);
-      }
-    }
-  }
-  else {
-    if (y1 > y2) {
-      SWAP(x1, x2);
-      SWAP(y1, y2);
-    }
-    for (i32 y = y1; y <= y2; ++y) {
-      i32 x = dx * (y - y1) / dy + x1;
-      if (fb_bounds_check(x, y)) {
-        Color* target = get_pixel_addr(x, y);
-        draw_pixel(target, color);
-      }
-    }
-  }
-#endif
 }
 
 void render_fill_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Color color) {
@@ -267,6 +250,9 @@ void render_fill_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Color 
     return;
   }
 
+#ifdef DRAW_BB
+  render_rect(bb.x, bb.y, bb.w - bb.x, bb.h - bb.y, COLOR_RGBA(255, 255, 255, 100));
+#endif
   for (i32 y = bb.y1; y < bb.y2; ++y) {
     for (i32 x = bb.x1; x < bb.x2; ++x) {
       i32 u1, u2, det;
@@ -277,6 +263,27 @@ void render_fill_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Color 
     }
   }
   renderer.num_primitives += 1;
+}
+
+void render_fill_circle(i32 px, i32 py, i32 r, Color color) {
+  Rect rect = {0};
+  if (!normalize_rect(px - r, py - r, 2*r, 2*r, &rect)) {
+    return;
+  }
+#ifdef DRAW_BB
+  render_rect(rect.x, rect.y, rect.w, rect.h, COLOR_RGBA(255, 255, 255, 100));
+#endif
+  for (i32 y = rect.y; y <= rect.y + rect.h; ++y) {
+    i32 x = rect.x;
+    Color* target = get_pixel_addr(x, y);
+    for (; x <= rect.x + rect.w; ++x, ++target) {
+      i32 dx = (x * 2 - px * 2);
+      i32 dy = (y * 2 - py * 2);
+      if (dx * dx + dy * dy <= r * r * 2 * 2) {
+        draw_pixel(target, color);
+      }
+    }
+  }
 }
 
 void renderer_set_clear_color(Color color) {

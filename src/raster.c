@@ -32,8 +32,8 @@ Game game = {
   .paused = false,
 };
 
-const u32 WINDOW_WIDTH = 800 / 2;
-const u32 WINDOW_HEIGHT = 600 / 2;
+const u32 WINDOW_WIDTH = 800 * 0.4;
+const u32 WINDOW_HEIGHT = 600 * 0.4;
 u32 BUFFER[WINDOW_WIDTH * WINDOW_HEIGHT] = {0};
 u32 CLEAR_BUFFER[WINDOW_WIDTH * WINDOW_HEIGHT] = {0};
 
@@ -127,21 +127,7 @@ void update_and_render(double dt) {
 
   renderer_begin();
   render_clear();
-  render_fill_rect_gradient(
-    game.x,
-    game.y,
-    32, 128,
-    COLOR_RGBA(255, 0, 0, 255),
-    COLOR_RGBA(0, 0, 0, 0),
-    V2(0.0f, -1.0f),
-    V2(0.0f, -1.0f)
-  );
-  render_rect(
-    game.x,
-    game.y,
-    32, 128,
-    COLOR_RGB(255, 255, 255)
-  );
+#if 1
   render_fill_rect_gradient(
     100,
     50,
@@ -161,20 +147,23 @@ void update_and_render(double dt) {
     V2(0.5f, 0.5f)
   );
   {
-    i32 x = 40;
-    i32 y = 100;
-    i32 len = 20;
+    i32 x = 200;
+    i32 y = 200;
+    i32 len = 60;
     render_line(x, y, x + len * cosf(game.timer), y + len * sinf(game.timer), COLOR_RGB(255, 20, 140));
     len += 2;
     y += len + 2;
     render_line(x + len * cosf(game.timer + 100), y + len * sinf(game.timer + 100), x, y, COLOR_RGB(255, 20, 140));
   }
 
+  render_fill_circle(game.x, game.y, 32 + 16*sinf(game.timer), COLOR_RGB(255, 255, 255));
+
   {
     i32 x = 200;
     i32 y = 100;
-    render_fill_triangle(x, y, x + 40 + 200 * sinf(game.timer * 0.25f), y - 30, x + 20, y + 80, COLOR_RGB(0, 255, 255));
+    render_fill_triangle(x, y, x + 40 + 200 * sinf(game.timer * 0.8f), y - 30, x + 20, y + 80, COLOR_RGB(130, 100, 255));
   }
+#endif
   render_post();
   game.tick += 1;
   game.timer += dt;

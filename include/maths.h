@@ -53,11 +53,7 @@ typedef union m4 {
 #define MIN3(A, B, C) (((A < B) && (A < C)) ? (A) : ((B < C) ? (B) : C ))
 #define MAX3(A, B, C) (((A > B) && (A > C)) ? (A) : ((B > C) ? (B) : C ))
 
-#define SWAP(A, B) { \
-  __typeof__(A) temp = A; \
-  A = B; \
-  B = temp; \
-}
+#define SWAP(T, a, b) do { T t = a; a = b; b = t; } while (0)
 
 #ifdef NO_MATH
   extern f32 sinf(f32 n);

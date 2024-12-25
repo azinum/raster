@@ -79,6 +79,7 @@ void render_fill_rect(i32 x, i32 y, i32 w, i32 h, Color color);
 void render_fill_rect_gradient(i32 x, i32 y, i32 w, i32 h, Color color_start, Color color_end, v2 gradient_start, v2 gradient_end);
 void render_line(i32 x1, i32 y1, i32 x2, i32 y2, Color color);
 void render_fill_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Color color);
+void render_fill_circle(i32 x, i32 y, i32 r, Color color);
 void renderer_set_clear_color(Color color);
 void renderer_begin(void);
 void render_post(void);

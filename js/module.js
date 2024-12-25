@@ -150,6 +150,13 @@ function fullscreen() {
 	}
 }
 
+function update_debug_info(wasm, elem, dt) {
+	elem.textContent =
+		wasm.instance.exports.renderer_get_num_primitives() + " primitives | " +
+		wasm.instance.exports.renderer_get_num_primitives_culled() + " primitives culled | " +
+		(1/dt).toFixed(1) + " fps | " + wasm.instance.exports.display_get_width() + "x" + wasm.instance.exports.display_get_height();
+}
+
 (async function init() {
 	WebAssembly.instantiateStreaming(fetch("raster.wasm"), {
 		env: {
@@ -196,7 +203,10 @@ function fullscreen() {
 			}
 		});
 
+		const debug_text_elem = document.getElementById("debug-info");
+
 		let startTime = 0;
+		let ticks = 0;
 		function frame_step(timestamp) {
 			if (startTime === undefined) {
 				startTime = timestamp;
@@ -215,6 +225,10 @@ function fullscreen() {
 			);
 			context.putImageData(frame, 0, 0);
 			window.requestAnimationFrame(frame_step);
+			ticks += 1;
+			if (!(ticks % 4)) {
+				update_debug_info(wasm, debug_text_elem, dt);
+			}
 		}
 		window.requestAnimationFrame(frame_step);
 	});
