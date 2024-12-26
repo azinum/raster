@@ -5,7 +5,7 @@
 
 typedef struct Mesh {
   u32 vertex_count;
-  u32 index_count;
+  u32 vertex_index_count;
   u32 normal_count;
   u32 normal_index_count;
   u32 uv_count;
