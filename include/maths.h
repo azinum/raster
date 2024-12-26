@@ -29,6 +29,18 @@ typedef union v2 {
   };
 } v2;
 
+typedef union v4 {
+  struct {
+    f32 x, y, z, w;
+  };
+  struct {
+    f32 r, g, b, a;
+  };
+  struct {
+    f32 x1, y1, x2, y2;
+  };
+} v4;
+
 typedef union m4 {
   f32 e[4][4];
 #if USE_SSE
