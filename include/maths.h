@@ -5,15 +5,13 @@
 
 #define PI32 3.14159265359f
 
+// NOTE(lucas): added extra component `w` for convenience
 typedef union v3 {
   struct {
-    f32 x, y, z;
+    f32 x, y, z, w;
   };
   struct {
-    f32 r, g, b;
-  };
-  struct {
-    f32 pitch, yaw, roll;
+    f32 r, g, b, a;
   };
 } v3;
 
@@ -92,11 +90,14 @@ extern f32 v3_length(v3 a);
 extern f32 v3_length_normalize(v3 a);
 extern v3 v3_normalize(v3 a);
 extern v3 v3_normalize_fast(v3 a);
+extern v3 v3_sub(v3 a, v3 b);
+extern v3 v3_div_scalar(v3 a, f32 b);
 extern f32 fast_inv_sqrt(f32 a);
 extern f32 lerp(f32 v0, f32 v1, f32 t);
 extern v3 v3_lerp(v3 a, v3 b, f32 t);
 extern f32 radians(f32 angle);
 extern f32 square_root(f32 a);
+extern v3 m4_multiply_v3(m4 m, v3 a);
 extern m4 m4_multiply(m4 a, m4 b);
 extern m4 rotate(f32 angle, v3 axis);
 extern m4 translate(v3 a);

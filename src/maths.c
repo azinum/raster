@@ -93,6 +93,25 @@ inline v3 v3_normalize_fast(v3 a) {
   );
 }
 
+inline v3 v3_sub(v3 a, v3 b) {
+  return V3(
+    a.x - b.x,
+    a.y - b.y,
+    a.z - b.z
+  );
+}
+
+inline v3 v3_div_scalar(v3 a, f32 b) {
+  if (b != 0) {
+    return V3(
+      a.x / b,
+      a.y / b,
+      a.z / b
+    );
+  }
+  return a;
+}
+
 inline f32 fast_inv_sqrt(f32 a) {
   union { f32 f; i32 i; } i, y;
   i.i = 0;
@@ -133,6 +152,18 @@ inline f32 square_root(f32 a) {
   result = sqrtf(a);
 #endif
   return result;
+}
+
+inline v3 m4_multiply_v3(m4 m, v3 a) {
+  f32 x = a.x;
+  f32 y = a.y;
+  f32 z = a.z;
+  return (v3) {
+    x * m.e[0][0] + y * m.e[1][0] + z * m.e[2][0] + m.e[3][0],
+    x * m.e[0][1] + y * m.e[1][1] + z * m.e[2][1] + m.e[3][1],
+    x * m.e[0][2] + y * m.e[1][2] + z * m.e[2][2] + m.e[3][2],
+    x * m.e[0][3] + y * m.e[1][3] + z * m.e[2][3] + m.e[3][3],
+  };
 }
 
 inline m4 m4_multiply(m4 a, m4 b) {

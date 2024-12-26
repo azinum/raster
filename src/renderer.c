@@ -1,6 +1,6 @@
 // renderer.c
 
-#define DRAW_BB
+//#define DRAW_BB
 #define BB_COLOR COLOR_RGBA(255, 255, 255, 150)
 #define DEBUG_OUT_OF_BOUNDS
 
@@ -25,15 +25,17 @@ static Color lerp_color(Color a, Color b, f32 t);
 static bool bounds_check(Rect rect, i32 x, i32 y);
 static bool fb_bounds_check(i32 x, i32 y);
 static bool barycentric(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, i32 x, i32 y, i32* u1, i32* u2, i32* det);
+static bool degenerate(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3);
 
 inline Color* get_pixel_addr(i32 x, i32 y) {
+
 #ifndef DEBUG_OUT_OF_BOUNDS
   ASSERT(x >= 0 && x < renderer.width && y >= 0 && y < renderer.height);
 #endif
   return &renderer.buffer[y * renderer.width + x];
 }
 
-void draw_pixel(Color* pixel, Color color) {
+inline void draw_pixel(Color* pixel, Color color) {
   switch (renderer.blend_mode) {
     case BLEND_NONE: {
       *pixel = color;
@@ -117,6 +119,10 @@ bool barycentric(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, i32 x, i32 y, i
     (SIGN(i32, *u2) == SIGN(i32, *det) || *u2 == 0) &&
     (SIGN(i32, u3)  == SIGN(i32, *det) ||  u3 == 0)
   );
+}
+
+inline bool degenerate(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3) {
+  return (x1 == x2 && y1 == y2) || (x2 == x3 && y2 == y3);
 }
 
 void renderer_init(Color* buffer, Color* clear_buffer, u32 width, u32 height) {
@@ -288,6 +294,101 @@ void render_fill_circle(i32 px, i32 py, i32 r, Color color) {
         draw_pixel(target, color);
       }
     }
+  }
+}
+
+// -z forward, +z back
+// -x left, +x right
+// +y up, -y down
+void render_mesh(Mesh* mesh, v3 position, v3 rotation) {
+  m4 proj = perspective(120, renderer.width / (f32)renderer.height, 0.1f, 10.0f);
+  m4 view = look_at(V3(0, 0, 0), V3(0, 0, -1), V3(0, -1, 0));
+  m4 model = translate(position);
+
+  model = m4_multiply(model, rotate(rotation.y, V3(0, 1, 0)));
+  model = m4_multiply(model, rotate(rotation.z, V3(0, 0, 1)));
+  model = m4_multiply(model, rotate(rotation.x, V3(1, 0, 0)));
+
+  // scale
+  // model = m4_multiply(model, scale(size));
+
+  static const Color palette[] = {
+    COLOR_RGB(230, 100, 100),
+    COLOR_RGB(100, 230, 100),
+    COLOR_RGB(100, 100, 230),
+    COLOR_RGB(230, 100, 230),
+    COLOR_RGB(100, 230, 230),
+    COLOR_RGB(230, 90, 230),
+    COLOR_RGB(60, 150, 230),
+  };
+  random_init(1234);
+  i32 color_index = 0;
+
+  // proj * view * model * pos
+  for (i32 i = 0; i < mesh->vertex_index_count; i += 3) {
+    Color color = palette[color_index % LENGTH(palette)];
+    color_index += 1;
+    v3 v[3] = {
+      mesh->vertex[mesh->vertex_index[i + 0]],
+      mesh->vertex[mesh->vertex_index[i + 1]],
+      mesh->vertex[mesh->vertex_index[i + 2]],
+    };
+    v3 normal = mesh->normal[mesh->normal_index[i]];
+
+    // world space
+    v3 vt[3] = {
+      m4_multiply_v3(model, v[0]),
+      m4_multiply_v3(model, v[1]),
+      m4_multiply_v3(model, v[2]),
+    };
+
+    // TODO(lucas): multiply by view matrix
+    vt[0] = m4_multiply_v3(view, vt[0]);
+    vt[1] = m4_multiply_v3(view, vt[1]);
+    vt[2] = m4_multiply_v3(view, vt[2]);
+
+    v3 line1 = v3_sub(vt[1], vt[0]);
+    v3 line2 = v3_sub(vt[2], vt[0]);
+    normal = v3_normalize(v3_cross(line1, line2));
+
+    // backface culling
+    if (v3_dot(normal, v3_sub(V3(0, 0, 0) /* camera position */, vt[0])) < 0.0f) {
+      continue;
+    }
+
+    // projection
+    vt[0] = m4_multiply_v3(proj, vt[0]);
+    vt[1] = m4_multiply_v3(proj, vt[1]);
+    vt[2] = m4_multiply_v3(proj, vt[2]);
+
+    vt[0] = v3_div_scalar(vt[0], vt[0].w);
+    vt[1] = v3_div_scalar(vt[1], vt[1].w);
+    vt[2] = v3_div_scalar(vt[2], vt[2].w);
+
+    // TODO(lucas): clip against view frustum
+
+    // project to screen
+    vt[0].x += 1.0f;
+    vt[1].x += 1.0f;
+    vt[2].x += 1.0f;
+    vt[0].y += 1.0f;
+    vt[1].y += 1.0f;
+    vt[2].y += 1.0f;
+    vt[0].x *= 0.5f * renderer.width;
+    vt[1].x *= 0.5f * renderer.width;
+    vt[2].x *= 0.5f * renderer.width;
+    vt[0].y *= 0.5f * renderer.height;
+    vt[1].y *= 0.5f * renderer.height;
+    vt[2].y *= 0.5f * renderer.height;
+
+    if (degenerate(vt[0].x, vt[0].y, vt[1].x, vt[1].y, vt[2].x, vt[2].y)) {
+      continue;
+    }
+
+    render_fill_triangle(vt[0].x, vt[0].y, vt[1].x, vt[1].y, vt[2].x, vt[2].y, color);
+    // render_line(vt[0].x, vt[0].y, vt[1].x, vt[1].y, COLOR_RGB(255, 255, 255));
+    // render_line(vt[1].x, vt[1].y, vt[2].x, vt[2].y, COLOR_RGB(255, 255, 255));
+    // render_line(vt[2].x, vt[2].y, vt[1].x, vt[1].y, COLOR_RGB(255, 255, 255));
   }
 }
 

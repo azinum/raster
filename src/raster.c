@@ -21,16 +21,14 @@
 #include "renderer.c"
 
 typedef struct Game {
-  i32 x;
-  i32 y;
+  v3 object;
   size_t tick;
   f32 timer;
   bool paused;
 } Game;
 
 Game game = {
-  .x = 0,
-  .y = 0,
+  .object = V3(0, 0, -2),
   .tick = 0,
   .timer = 0,
   .paused = false,
@@ -101,11 +99,11 @@ void init(void) {
 }
 
 void mouse_click(i32 x, i32 y) {
-  game.x = x;
-  game.y = y;
+  game.object = V3(0, 0, 0);
 }
 
 void input_event(i32 code) {
+  f32 speed = 0.05f;
   switch (code) {
     case KEY_R: {
       game.timer = 0;
@@ -117,20 +115,31 @@ void input_event(i32 code) {
       game.paused = !game.paused;
       break;
     }
+    // forward, backward
     case KEY_W: {
-      game.y -= 5;
+      game.object.z -= speed;
       break;
     }
     case KEY_S: {
-      game.y += 5;
+      game.object.z += speed;
       break;
     }
+    // left, right
     case KEY_A: {
-      game.x -= 5;
+      game.object.x -= speed;
       break;
     }
     case KEY_D: {
-      game.x += 5;
+      game.object.x += speed;
+      break;
+    }
+    // up, down
+    case KEY_Z: {
+      game.object.y += speed;
+      break;
+    }
+    case KEY_X: {
+      game.object.y -= speed;
       break;
     }
     default:
@@ -146,13 +155,17 @@ void update_and_render(double dt) {
 
   renderer_begin();
   render_clear();
-#if 1
+#if 0
   {
     i32 x = game.x;
     i32 y = game.y;
     render_fill_triangle(x, y, x + 40, y - 30, x + 20, y + 100, COLOR_RGB(130, 100, 255));
   }
 #endif
+
+  // render_mesh(&cube, V3(game.x, game.y, 0), V3(game.timer * 10, game.timer * 30, 0));
+  render_mesh(&cube, game.object, V3(game.timer * 10, game.timer * 30, 0));
+
   render_post();
   game.tick += 1;
   game.timer += dt;

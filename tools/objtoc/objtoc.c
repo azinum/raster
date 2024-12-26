@@ -225,17 +225,10 @@ Result wavefront_sort_mesh(Mesh* mesh) {
 }
 
 Result objtoc(Mesh* mesh, const char* name) {
-
-  // v3* vertex;
-  // u32* vertex_index;
-  // v3* normal;
-  // u32* normal_index;
-  // v2* uv;
-  // u32* uv_index;
   printf("v3 %s_vertex[] = {", name);
   for (u32 i = 0; i < mesh->vertex_count; ++i) {
     v3 v = mesh->vertex[i];
-    printf("(v3){%.04f,%.04f,%.04f},", v.x, v.y, v.z);
+    printf("(v3){%.04f,%.04f,%.04f, 1},", v.x, v.y, v.z);
   }
   printf("};\n");
 
