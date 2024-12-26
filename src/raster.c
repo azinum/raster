@@ -12,9 +12,12 @@
 
 #include "config.h"
 #include "maths.h"
+#include "mesh.h"
+#include "assets.h"
 #include "renderer.h"
 
 #include "maths.c"
+#include "mesh.c"
 #include "renderer.c"
 
 typedef struct Game {
