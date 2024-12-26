@@ -1,11 +1,12 @@
 // renderer.c
 
-//#define DRAW_BB
+// #define DRAW_BB
 #define BB_COLOR COLOR_RGBA(255, 255, 255, 150)
 #define DEBUG_OUT_OF_BOUNDS
 
 typedef struct Renderer {
-  Color* buffer;
+  Color* target;
+  Color* color_buffer;
   Color* clear_buffer;
   i32 width;
   i32 height;
@@ -32,7 +33,7 @@ inline Color* get_pixel_addr(i32 x, i32 y) {
 #ifndef DEBUG_OUT_OF_BOUNDS
   ASSERT(x >= 0 && x < renderer.width && y >= 0 && y < renderer.height);
 #endif
-  return &renderer.buffer[y * renderer.width + x];
+  return &renderer.target[y * renderer.width + x];
 }
 
 inline void draw_pixel(Color* pixel, Color color) {
@@ -125,9 +126,10 @@ inline bool degenerate(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3) {
   return (x1 == x2 && y1 == y2) || (x2 == x3 && y2 == y3);
 }
 
-void renderer_init(Color* buffer, Color* clear_buffer, u32 width, u32 height) {
-  renderer.buffer = buffer;
+void renderer_init(Color* color_buffer, Color* clear_buffer, u32 width, u32 height) {
+  renderer.color_buffer = color_buffer;
   renderer.clear_buffer = clear_buffer;
+  renderer_set_render_target(RENDER_TARGET_COLOR);
   renderer.width = width;
   renderer.height = height;
   renderer.blend_mode = BLEND_NONE;
@@ -138,6 +140,21 @@ void renderer_init(Color* buffer, Color* clear_buffer, u32 width, u32 height) {
 
 void renderer_set_blend_mode(Blend mode) {
   renderer.blend_mode = mode;
+}
+
+void renderer_set_render_target(Render_target render_target) {
+  switch (render_target) {
+    case RENDER_TARGET_COLOR: {
+      renderer.target = renderer.color_buffer;
+      break;
+    }
+    case RENDER_TARGET_CLEAR: {
+      renderer.target = renderer.clear_buffer;
+      break;
+    }
+    default:
+      break;
+  }
 }
 
 void render_rect(i32 x, i32 y, i32 w, i32 h, Color color) {
@@ -308,7 +325,6 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation) {
   model = m4_multiply(model, rotate(rotation.z, V3(0, 0, 1)));
   model = m4_multiply(model, rotate(rotation.x, V3(1, 0, 0)));
 
-  // scale
   model = m4_multiply(model, scale(size));
 
   static const Color palette[] = {
@@ -407,7 +423,7 @@ void render_post(void) {
 }
 
 void render_clear(void) {
-  memcpy(renderer.buffer, renderer.clear_buffer, sizeof(Color) * renderer.width * renderer.height);
+  memcpy(renderer.color_buffer, renderer.clear_buffer, sizeof(Color) * renderer.width * renderer.height);
 }
 
 i32 renderer_get_num_primitives(void) {

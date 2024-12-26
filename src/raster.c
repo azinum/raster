@@ -97,7 +97,10 @@ void* display_get_addr(void);
 void init(void) {
   random_init(1234);
   renderer_init((Color*)display_get_addr(), (Color*)&CLEAR_BUFFER[0], display_get_width(), display_get_height());
-  renderer_set_clear_color(COLOR_RGBA(40, 40, 40, 255));
+  renderer_set_render_target(RENDER_TARGET_CLEAR);
+  render_fill_rect_gradient(0, 0, display_get_width(), display_get_height(), COLOR_RGB(30, 40, 65), COLOR_RGB(0, 0, 0), V2(0, -1), V2(0, -1));
+  renderer_set_render_target(RENDER_TARGET_COLOR);
+  // renderer_set_clear_color(COLOR_RGBA(40, 40, 40, 255));
   camera_init(V3(0, 0, 0));
   camera_update();
 }
