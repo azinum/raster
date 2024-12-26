@@ -300,9 +300,8 @@ void render_fill_circle(i32 px, i32 py, i32 r, Color color) {
 // -z forward, +z back
 // -x left, +x right
 // +y up, -y down
-void render_mesh(Mesh* mesh, v3 position, v3 rotation) {
-  m4 proj = perspective(120, renderer.width / (f32)renderer.height, 0.1f, 10.0f);
-  m4 view = look_at(V3(0, 0, 0), V3(0, 0, -1), V3(0, -1, 0));
+void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation) {
+  m4 proj = perspective(60, renderer.width / (f32)renderer.height, 0.1f, 10.0f);
   m4 model = translate(position);
 
   model = m4_multiply(model, rotate(rotation.y, V3(0, 1, 0)));
@@ -310,7 +309,7 @@ void render_mesh(Mesh* mesh, v3 position, v3 rotation) {
   model = m4_multiply(model, rotate(rotation.x, V3(1, 0, 0)));
 
   // scale
-  // model = m4_multiply(model, scale(size));
+  model = m4_multiply(model, scale(size));
 
   static const Color palette[] = {
     COLOR_RGB(230, 100, 100),
@@ -324,6 +323,8 @@ void render_mesh(Mesh* mesh, v3 position, v3 rotation) {
   random_init(1234);
   i32 color_index = 0;
 
+  m4 mvp = m4_multiply(proj, m4_multiply(view, model));
+
   // proj * view * model * pos
   for (i32 i = 0; i < mesh->vertex_index_count; i += 3) {
     Color color = palette[color_index % LENGTH(palette)];
@@ -333,37 +334,25 @@ void render_mesh(Mesh* mesh, v3 position, v3 rotation) {
       mesh->vertex[mesh->vertex_index[i + 1]],
       mesh->vertex[mesh->vertex_index[i + 2]],
     };
-    v3 normal = mesh->normal[mesh->normal_index[i]];
 
-    // world space
     v3 vt[3] = {
-      m4_multiply_v3(model, v[0]),
-      m4_multiply_v3(model, v[1]),
-      m4_multiply_v3(model, v[2]),
+      m4_multiply_v3(mvp, v[0]),
+      m4_multiply_v3(mvp, v[1]),
+      m4_multiply_v3(mvp, v[2]),
     };
-
-    // TODO(lucas): multiply by view matrix
-    vt[0] = m4_multiply_v3(view, vt[0]);
-    vt[1] = m4_multiply_v3(view, vt[1]);
-    vt[2] = m4_multiply_v3(view, vt[2]);
-
-    v3 line1 = v3_sub(vt[1], vt[0]);
-    v3 line2 = v3_sub(vt[2], vt[0]);
-    normal = v3_normalize(v3_cross(line1, line2));
-
-    // backface culling
-    if (v3_dot(normal, v3_sub(V3(0, 0, 0) /* camera position */, vt[0])) < 0.0f) {
-      continue;
-    }
-
-    // projection
-    vt[0] = m4_multiply_v3(proj, vt[0]);
-    vt[1] = m4_multiply_v3(proj, vt[1]);
-    vt[2] = m4_multiply_v3(proj, vt[2]);
 
     vt[0] = v3_div_scalar(vt[0], vt[0].w);
     vt[1] = v3_div_scalar(vt[1], vt[1].w);
     vt[2] = v3_div_scalar(vt[2], vt[2].w);
+
+    v3 line1 = v3_sub(vt[1], vt[0]);
+    v3 line2 = v3_sub(vt[2], vt[0]);
+    v3 normal = v3_normalize(v3_cross(line1, line2));
+
+    // backface culling
+    if (v3_dot(normal, v3_sub(camera.pos, vt[0])) > 0.0f) {
+      continue;
+    }
 
     // TODO(lucas): clip against view frustum
 

@@ -10,13 +10,15 @@
 #define RANDOM_IMPLEMENTATION
 #include "random.h"
 
-#include "config.h"
 #include "maths.h"
+#include "config.h"
+#include "camera.h"
 #include "mesh.h"
 #include "assets.h"
 #include "renderer.h"
 
 #include "maths.c"
+#include "camera.c"
 #include "mesh.c"
 #include "renderer.c"
 
@@ -28,7 +30,7 @@ typedef struct Game {
 } Game;
 
 Game game = {
-  .object = V3(0, 0, -2),
+  .object = V3(0, 0, -6),
   .tick = 0,
   .timer = 0,
   .paused = false,
@@ -96,6 +98,8 @@ void init(void) {
   random_init(1234);
   renderer_init((Color*)display_get_addr(), (Color*)&CLEAR_BUFFER[0], display_get_width(), display_get_height());
   renderer_set_clear_color(COLOR_RGBA(40, 40, 40, 255));
+  camera_init(V3(0, 0, 0));
+  camera_update();
 }
 
 void mouse_click(i32 x, i32 y) {
@@ -163,8 +167,8 @@ void update_and_render(double dt) {
   }
 #endif
 
-  // render_mesh(&cube, V3(game.x, game.y, 0), V3(game.timer * 10, game.timer * 30, 0));
-  render_mesh(&cube, game.object, V3(game.timer * 10, game.timer * 30, 0));
+  f32 size = 2 + sinf(game.timer + 225);
+  render_mesh(&cube, game.object, V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40));
 
   render_post();
   game.tick += 1;
