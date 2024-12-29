@@ -29,8 +29,10 @@ typedef struct Game {
   bool paused;
 } Game;
 
+#define OBJECT_INIT_POS V3(0, 0, -6)
+
 Game game = {
-  .object = V3(0, 0, -6),
+  .object = OBJECT_INIT_POS,
   .tick = 0,
   .timer = 0,
   .paused = false,
@@ -100,7 +102,6 @@ void init(void) {
   renderer_set_render_target(RENDER_TARGET_CLEAR);
   render_fill_rect_gradient(0, 0, display_get_width(), display_get_height(), COLOR_RGB(30, 40, 65), COLOR_RGB(0, 0, 0), V2(0, -1), V2(0, -1));
   renderer_set_render_target(RENDER_TARGET_COLOR);
-  // renderer_set_clear_color(COLOR_RGBA(40, 40, 40, 255));
   camera_init(V3(0, 0, 0));
   camera_update();
 }
@@ -114,6 +115,7 @@ void input_event(i32 code) {
   switch (code) {
     case KEY_R: {
       game.timer = 0;
+      game.object = OBJECT_INIT_POS;
       x_offset = random_f32() * 1000;
       y_offset = random_f32() * 1000;
       break;
@@ -170,9 +172,22 @@ void update_and_render(double dt) {
   }
 #endif
 
-  f32 size = 2 + sinf(game.timer + 225);
-  render_mesh(&cube, game.object, V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40));
+  {
+    f32 size = 1; // 2 + sinf(game.timer + 225);
+    render_mesh(&cube, game.object, V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40));
+  }
 
+#if 0
+  f32 size = 1; //2 + sinf(game.timer + 225);
+  // size *= 0.2f;
+  for (i32 y = -3; y < 4; ++y) {
+    for (i32 x = -5; x < 6; ++x) {
+      for (i32 z = -8; z < 2; ++z) {
+        render_mesh(&cube, V3(x * 0.5f, y * 0.5f, 0.5f * z - 6), V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40));
+      }
+    }
+  }
+#endif
   render_post();
   game.tick += 1;
   game.timer += dt;

@@ -42,6 +42,8 @@ typedef union v4 {
   };
 } v4;
 
+typedef v3 Plane;
+
 typedef union m4 {
   f32 e[4][4];
 #if USE_SSE
@@ -67,6 +69,8 @@ typedef union m4 {
 #define MAX3(A, B, C) (((A > B) && (A > C)) ? (A) : ((B > C) ? (B) : C ))
 
 #define SWAP(T, a, b) do { T t = a; a = b; b = t; } while (0)
+
+#define EXPAND_V3(A) A.x, A.y, A.z
 
 #ifdef NO_MATH
   extern f32 sinf(f32 n);

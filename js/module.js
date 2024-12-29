@@ -152,7 +152,7 @@ function fullscreen() {
 
 function update_debug_info(wasm, elem, dt) {
 	elem.textContent =
-		wasm.instance.exports.renderer_get_num_primitives() + " primitives | " +
+		wasm.instance.exports.renderer_get_num_primitives() + "/" + wasm.instance.exports.renderer_get_num_primitives_culled() + " primitives | " +
 		(dt * 1000).toFixed(2) + " ms | " + wasm.instance.exports.display_get_width() + "x" + wasm.instance.exports.display_get_height();
 }
 

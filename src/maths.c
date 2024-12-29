@@ -20,8 +20,9 @@ inline v2 v2_normalize(v2 a) {
   v2 result = {0};
   f32 length = v2_length(a);
   if (length != 0) {
-    result.x = a.x * (1.0f / length);
-    result.y = a.y * (1.0f / length);
+    f32 inv = 1.0f / length;
+    result.x = a.x * inv;
+    result.y = a.y * inv;
   }
   return result;
 }
@@ -76,9 +77,10 @@ inline v3 v3_normalize(v3 a) {
   v3 result = {0};
   f32 length = v3_length(a);
   if (length != 0) {
-    result.x = a.x * (1.0f / length);
-    result.y = a.y * (1.0f / length);
-    result.z = a.z * (1.0f / length);
+    f32 inv = 1.0f / length;
+    result.x = a.x * inv;
+    result.y = a.y * inv;
+    result.z = a.z * inv;
   }
   return result;
 }
@@ -103,11 +105,12 @@ inline v3 v3_sub(v3 a, v3 b) {
 
 inline v3 v3_div_scalar(v3 a, f32 b) {
   if (b != 0) {
-    return V3(
+    return (v3) {
       a.x / b,
       a.y / b,
-      a.z / b
-    );
+      a.z / b,
+      a.w
+    };
   }
   return a;
 }
@@ -272,7 +275,7 @@ inline m4 look_at(v3 eye, v3 center, v3 up) {
 
 	v3 front = v3_normalize(V3_OP(center, eye, -));
 	v3 side = v3_normalize(v3_cross(front, up));
-	v3 u = v3_cross(side, front);
+	v3 u = v3_normalize(v3_cross(side, front));
 
 	result.e[0][0] = side.x;
 	result.e[0][1] = u.x;

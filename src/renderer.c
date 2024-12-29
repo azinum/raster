@@ -27,6 +27,7 @@ static bool bounds_check(Rect rect, i32 x, i32 y);
 static bool fb_bounds_check(i32 x, i32 y);
 static bool barycentric(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, i32 x, i32 y, i32* u1, i32* u2, i32* det);
 static bool degenerate(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3);
+static u8 trivial_reject(f32 x, f32 y, const f32 x_min, const f32 x_max, const f32 y_min, const f32 y_max);
 
 inline Color* get_pixel_addr(i32 x, i32 y) {
 
@@ -124,6 +125,15 @@ bool barycentric(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, i32 x, i32 y, i
 
 inline bool degenerate(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3) {
   return (x1 == x2 && y1 == y2) || (x2 == x3 && y2 == y3);
+}
+
+// Cohen-Sutherland outcode for trivial reject/accept
+inline u8 trivial_reject(f32 x, f32 y, const f32 x_min, const f32 x_max, const f32 y_min, const f32 y_max) {
+  return
+    (y > y_max) |
+    (y < y_min) << 1 |
+    (x > x_max) << 2 |
+    (x < x_min) << 4;
 }
 
 void renderer_init(Color* color_buffer, Color* clear_buffer, u32 width, u32 height) {
@@ -318,7 +328,9 @@ void render_fill_circle(i32 px, i32 py, i32 r, Color color) {
 // -x left, +x right
 // +y up, -y down
 void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation) {
-  m4 proj = perspective(60, renderer.width / (f32)renderer.height, 0.1f, 10.0f);
+  const f32 z_near = 0.2f;
+  const f32 z_far = 10.0;
+  m4 proj = perspective(80, renderer.width / (f32)renderer.height, z_near, z_far);
   m4 model = translate(position);
 
   model = m4_multiply(model, rotate(rotation.y, V3(0, 1, 0)));
@@ -339,18 +351,21 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation) {
   random_init(1234);
   i32 color_index = 0;
 
+  m4 mv = m4_multiply(proj, view);
   m4 mvp = m4_multiply(proj, m4_multiply(view, model));
 
   // proj * view * model * pos
   for (i32 i = 0; i < mesh->vertex_index_count; i += 3) {
     Color color = palette[color_index % LENGTH(palette)];
     color_index += 1;
+    // original vertices
     v3 v[3] = {
       mesh->vertex[mesh->vertex_index[i + 0]],
       mesh->vertex[mesh->vertex_index[i + 1]],
       mesh->vertex[mesh->vertex_index[i + 2]],
     };
 
+    // transformed vertices
     v3 vt[3] = {
       m4_multiply_v3(mvp, v[0]),
       m4_multiply_v3(mvp, v[1]),
@@ -361,6 +376,8 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation) {
     vt[1] = v3_div_scalar(vt[1], vt[1].w);
     vt[2] = v3_div_scalar(vt[2], vt[2].w);
 
+    float depth_avg = (vt[0].w + vt[1].w + vt[2].w) / 3.0f;
+
     v3 line1 = v3_sub(vt[1], vt[0]);
     v3 line2 = v3_sub(vt[2], vt[0]);
     v3 normal = v3_normalize(v3_cross(line1, line2));
@@ -370,7 +387,20 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation) {
       continue;
     }
 
-    // TODO(lucas): clip against view frustum
+    if (depth_avg <= z_near || depth_avg >= z_far) {
+      continue;
+    }
+
+    // viewspace-transformed vertices used for clipping
+    v3 vt_copy[3] = {
+      vt[0],
+      vt[1],
+      vt[2],
+    };
+
+    if (trivial_reject(vt[0].x, vt[0].y, -1, 1, -1, 1) != 0 && trivial_reject(vt[1].x, vt[1].y, -1, 1, -1, 1) != 0 && trivial_reject(vt[2].x, vt[2].y, -1, 1, -1, 1) != 0) {
+      continue;
+    }
 
     // project to screen
     vt[0].x += 1.0f;
@@ -389,6 +419,8 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation) {
     if (degenerate(vt[0].x, vt[0].y, vt[1].x, vt[1].y, vt[2].x, vt[2].y)) {
       continue;
     }
+
+    // TODO(lucas): clip against view frustum
 
     render_fill_triangle(vt[0].x, vt[0].y, vt[1].x, vt[1].y, vt[2].x, vt[2].y, color);
     // render_line(vt[0].x, vt[0].y, vt[1].x, vt[1].y, COLOR_RGB(255, 255, 255));

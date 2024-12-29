@@ -21,6 +21,23 @@ void camera_update(void) {
   camera.right = v3_normalize(v3_cross(camera.forward, WORLD_UP));
   camera.up = v3_normalize(v3_cross(camera.right, camera.forward));
 
+#if 0
+  printf(
+    "forward: %g, %g, %g - "
+    "right: %g, %g, %g - "
+    "up: %g, %g, %g\n"
+    ,
+    camera.forward.x,
+    camera.forward.y,
+    camera.forward.z,
+    camera.right.x,
+    camera.right.y,
+    camera.right.z,
+    camera.up.x,
+    camera.up.y,
+    camera.up.z
+  );
+#endif
   v3 center = V3_OP(camera.pos, camera.forward, -);
   view = look_at(camera.pos, center, camera.up);
 }
