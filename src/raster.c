@@ -14,12 +14,14 @@
 #include "config.h"
 #include "camera.h"
 #include "mesh.h"
+#include "texture.h"
 #include "assets.h"
 #include "renderer.h"
 
 #include "maths.c"
 #include "camera.c"
 #include "mesh.c"
+#include "texture.c"
 #include "renderer.c"
 
 typedef struct Game {

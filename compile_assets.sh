@@ -12,6 +12,12 @@ for OBJ_PATH in data/mesh/*.obj; do
 	objtoc ${OBJ_PATH} ${NAME} >> ${FILE}
 done
 
+for PNG_PATH in data/texture/*.png; do
+	NAME=${PNG_PATH%.png}
+	NAME=${NAME##*/}
+	pngtoc ${PNG_PATH} ${NAME} >> ${FILE}
+done
+
 # for TTF_PATH in assets/font/*.ttf; do
 # 	NAME=${TTF_PATH%.ttf}
 # 	NAME=${NAME##*/}
