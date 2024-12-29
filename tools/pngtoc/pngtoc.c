@@ -75,7 +75,7 @@ Result pixels2c(FILE* fp, u32* data, i32 x, i32 y, const char* name) {
     }
   }
   fprintf(fp, "};\n");
-  fprintf(fp, "Texture %s = { .data = (struct Color*)%s_pixels, .width = %d, .height = %d, };\n", name, name, x, y);
+  fprintf(fp, "Texture %s = { .data = (Color*)%s_pixels, .width = %d, .height = %d, };\n", name, name, x, y);
   return result;
 }
 

@@ -2,7 +2,8 @@
 
 // #define DRAW_BB
 // #define NO_LIGHTING
-// #define UNIFORM_LIGHTING_POSITION
+#define UNIFORM_LIGHTING_POSITION
+// #define NO_TEXTURES
 #define BB_COLOR COLOR_RGBA(255, 255, 255, 150)
 #define DEBUG_OUT_OF_BOUNDS
 
@@ -28,6 +29,8 @@ static Color lerp_color(Color a, Color b, f32 t);
 static bool bounds_check(Rect rect, i32 x, i32 y);
 static bool fb_bounds_check(i32 x, i32 y);
 static bool barycentric(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, i32 x, i32 y, i32* u1, i32* u2, i32* det);
+static bool v3_barycentric(v3 a, v3 b, v3 c, v3 p, f32* u1, f32* u2, f32* det);
+static v2 v2_cartesian(v2 a, v2 b, v2 c, f32 w1, f32 w2, f32 w3);
 static bool degenerate(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3);
 static u8 trivial_reject(f32 x, f32 y, const f32 x_min, const f32 x_max, const f32 y_min, const f32 y_max);
 
@@ -39,6 +42,7 @@ inline Color* get_pixel_addr(i32 x, i32 y) {
   return &renderer.target[y * renderer.width + x];
 }
 
+// TODO: implement
 inline void draw_pixel(Color* pixel, Color color) {
   switch (renderer.blend_mode) {
     case BLEND_NONE: {
@@ -125,6 +129,33 @@ bool barycentric(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, i32 x, i32 y, i
   );
 }
 
+bool v3_barycentric(v3 a, v3 b, v3 c, v3 p, f32* u1, f32* u2, f32* det) {
+  v3 p1 = V3_OP(b, a, -);
+  v3 p2 = V3_OP(c, a, -);
+  v3 p3 = V3_OP(p, a, -);
+
+  f32 d00 = v3_dot(p1, p1);
+  f32 d01 = v3_dot(p1, p2);
+  f32 d11 = v3_dot(p2, p2);
+  f32 d20 = v3_dot(p3, p1);
+  f32 d21 = v3_dot(p3, p2);
+
+  f32 denom = d00 * d11 - d01 * d01;
+  if (denom != 0.0f) {
+    *u1 = (d11 * d20 - d01 * d21) / denom;
+    *u2 = (d00 * d21 - d01 * d20) / denom;
+  }
+  *det = 1.0f - *u1 - *u2;
+  return *u1 >= 0 && *u2 >= 0 && *det >= 0 && *u1 + *u2 <= 1;
+}
+
+inline v2 v2_cartesian(v2 a, v2 b, v2 c, f32 w1, f32 w2, f32 w3) {
+  return V2(
+    (a.x * w1) + (b.x * w2) + (c.x * w3),
+    (a.y * w1) + (b.y * w2) + (c.y * w3)
+  );
+}
+
 inline bool degenerate(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3) {
   return (x1 == x2 && y1 == y2) || (x2 == x3 && y2 == y3);
 }
@@ -145,7 +176,7 @@ void renderer_init(Color* color_buffer, Color* clear_buffer, u32 width, u32 heig
   renderer.width = width;
   renderer.height = height;
   renderer.blend_mode = BLEND_NONE;
-  renderer.dither = true;
+  renderer.dither = DITHERING;
   renderer.num_primitives = 0;
   renderer.num_primitives_culled = 0;
 }
@@ -282,7 +313,6 @@ void render_line(i32 x1, i32 y1, i32 x2, i32 y2, Color color) {
 }
 
 void render_fill_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Color color) {
-
   bool inside = false;
   Rect bb = {0};
   if (!triangle_bb(x1, y1, x2, y2, x3, y3, &bb)) {
@@ -299,6 +329,53 @@ void render_fill_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Color 
       if (barycentric(x1, y1, x2, y2, x3, y3, x, y, &u1, &u2, &det)) {
         Color* target = get_pixel_addr(x, y);
         draw_pixel(target, color);
+      }
+    }
+  }
+  renderer.num_primitives += 1;
+}
+
+void render_texture_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, v2 uv1, v2 uv2, v2 uv3, const Texture* const texture, f32 light_contrib) {
+  bool inside = false;
+  Rect bb = {0};
+  if (!triangle_bb(x1, y1, x2, y2, x3, y3, &bb)) {
+    renderer.num_primitives_culled += 1;
+    return;
+  }
+
+  Color texel = COLOR_RGB(255, 0, 255);
+#ifdef NO_TEXTURES
+  texel = COLOR_RGB(
+    255 * light_contrib,
+    255 * light_contrib,
+    255 * light_contrib
+  );
+#endif
+
+#ifdef DRAW_BB
+  render_rect(bb.x, bb.y, bb.w - bb.x, bb.h - bb.y, BB_COLOR);
+#endif
+  for (i32 y = bb.y1; y < bb.y2; ++y) {
+    for (i32 x = bb.x1; x < bb.x2; ++x) {
+      i32 u1, u2, det = 0;
+      if (barycentric(x1, y1, x2, y2, x3, y3, x, y, &u1, &u2, &det)) {
+        Color* target = get_pixel_addr(x, y);
+#ifndef NO_TEXTURES
+        f32 w1 = 0, w2 = 0, w3 = 0;
+        if (det != 0) {
+          w1 = u1 / (f32)det;
+          w2 = u2 / (f32)det;
+        }
+        w3 = 1.0f - w1 - w2;
+        v2 uv = v2_cartesian(uv1, uv2, uv3, w1, w2, w3);
+        i32 x_coord = (ABS(i32, texture->width * uv.x)) % texture->width;
+        i32 y_coord = (ABS(i32, texture->height * uv.y)) % texture->height;
+        texel = texture_get_pixel(texture, x_coord, y_coord);
+        texel.r *= light_contrib;
+        texel.g *= light_contrib;
+        texel.b *= light_contrib;
+#endif
+        draw_pixel(target, texel);
       }
     }
   }
@@ -329,10 +406,8 @@ void render_fill_circle(i32 px, i32 py, i32 r, Color color) {
 // -z forward, +z back
 // -x left, +x right
 // +y up, -y down
-void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation) {
-  const f32 z_near = 0.2f;
-  const f32 z_far = 10.0;
-  m4 proj = perspective(80, renderer.width / (f32)renderer.height, z_near, z_far);
+void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation, Light light) {
+  m4 proj = perspective(CAMERA_FOV, renderer.width / (f32)renderer.height, CAMERA_ZNEAR, CAMERA_ZFAR);
   m4 model = translate(position);
 
   model = m4_multiply(model, rotate(rotation.y, V3(0, 1, 0)));
@@ -356,10 +431,7 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation) {
   m4 mv = m4_multiply(proj, view);
   m4 mvp = m4_multiply(proj, m4_multiply(view, model));
 
-  v3 light_pos = V3(2, 0, -3);
   f32 light_contrib = 0.0f;
-  f32 light_attenuation = 1.5f;
-  f32 light_strength = 2.0f;
 
   // proj * view * model * pos
   for (i32 i = 0; i < mesh->vertex_index_count; i += 3) {
@@ -372,16 +444,22 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation) {
       mesh->vertex[mesh->vertex_index[i + 2]],
     };
 
-#ifdef UNIFORM_LIGHTING_POSITION
-    const v3 pos = position;
-#else
+    v2 uv[3] = {
+      mesh->uv[mesh->uv_index[i + 0]],
+      mesh->uv[mesh->uv_index[i + 1]],
+      mesh->uv[mesh->uv_index[i + 2]],
+    };
 
+#ifdef UNIFORM_LIGHTING_POSITION
+    v3 pos = position;
+#else
     // vertex in world position
     v3 vp[3] = {
       m4_multiply_v3(model, v[0]),
       m4_multiply_v3(model, v[1]),
       m4_multiply_v3(model, v[2]),
     };
+    // center of the triangle
     v3 pos = V3_OP(V3_OP(vp[0], vp[1], +), vp[2], +);
     pos = V3_OP1(pos, 1/3.0f, *);
 #endif
@@ -404,11 +482,11 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation) {
     v3 normal = v3_normalize(v3_cross(line1, line2));
 
     // backface culling
-    if (v3_dot(normal, v3_sub(camera.pos, vt[0])) > 0.0f) {
+    if (v3_dot(normal, v3_sub(camera.pos, pos)) < 0.0f) {
       continue;
     }
 
-    if (depth_avg <= z_near || depth_avg >= z_far) {
+    if (depth_avg <= CAMERA_ZNEAR || depth_avg >= CAMERA_ZFAR) {
       continue;
     }
 
@@ -445,17 +523,17 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation) {
 
     light_contrib = 1.0f;
 #ifndef NO_LIGHTING
-    v3 light_delta = V3_OP(light_pos, pos, -);
+    v3 light_delta = V3_OP(light.pos, pos, -);
     v3 light_normalized = v3_normalize(light_delta);
     f32 light_distance = v3_length(light_delta);
-    f32 light_attenuation_final = (light_strength) / (light_distance + light_attenuation);
-    light_contrib = v3_dot(normal, light_normalized) * light_attenuation_final;
-    light_contrib = CLAMP(light_contrib, 0, 1);
+    f32 light_attenuation_final = CLAMP(1.0f / (1.0f - (light_distance*light_distance)/(light.radius*light.radius)), 0, 1);
+    light_contrib = v3_dot(normal, light_normalized) * light_attenuation_final * light.strength;
+    light_contrib = CLAMP(light_contrib, light.ambience, 1);
 #endif
 
     Color actual_color = lerp_color(COLOR_RGB(0, 0, 0), color, light_contrib);
 
-    render_fill_triangle(vt[0].x, vt[0].y, vt[1].x, vt[1].y, vt[2].x, vt[2].y, actual_color);
+    render_texture_triangle(vt[0].x, vt[0].y, vt[1].x, vt[1].y, vt[2].x, vt[2].y, uv[0], uv[1], uv[2], &tile_23, light_contrib);
     // render_line(vt[0].x, vt[0].y, vt[1].x, vt[1].y, COLOR_RGB(255, 255, 255));
     // render_line(vt[1].x, vt[1].y, vt[2].x, vt[2].y, COLOR_RGB(255, 255, 255));
     // render_line(vt[2].x, vt[2].y, vt[1].x, vt[1].y, COLOR_RGB(255, 255, 255));

@@ -16,16 +16,19 @@
 #include "mesh.h"
 #include "texture.h"
 #include "assets.h"
+#include "light.h"
 #include "renderer.h"
 
 #include "maths.c"
 #include "camera.c"
 #include "mesh.c"
 #include "texture.c"
+#include "light.c"
 #include "renderer.c"
 
 typedef struct Game {
   v3 object;
+  Light light;
   size_t tick;
   f32 timer;
   bool paused;
@@ -35,6 +38,7 @@ typedef struct Game {
 
 Game game = {
   .object = OBJECT_INIT_POS,
+  .light = {0},
   .tick = 0,
   .timer = 0,
   .paused = false,
@@ -104,8 +108,10 @@ void init(void) {
   renderer_set_render_target(RENDER_TARGET_CLEAR);
   render_fill_rect_gradient(0, 0, display_get_width(), display_get_height(), COLOR_RGB(30, 40, 65), COLOR_RGB(0, 0, 0), V2(0, -1), V2(0, -1));
   renderer_set_render_target(RENDER_TARGET_COLOR);
-  camera_init(V3(0, 0, 0));
+  camera_init(V3(0, -2, 0));
+  camera.rotation.pitch = -30;
   camera_update();
+  game.light = light_create(V3(0, 0, -4.5), 1.0f, 4.25f);
 }
 
 void mouse_click(i32 x, i32 y) {
@@ -153,6 +159,30 @@ void input_event(i32 code) {
       game.object.y -= speed;
       break;
     }
+    case KEY_1: {
+      game.light.strength -= 0.1f;
+      break;
+    }
+    case KEY_2: {
+      game.light.strength += 0.1f;
+      break;
+    }
+    case KEY_3: {
+      game.light.radius -= 0.1f;
+      break;
+    }
+    case KEY_4: {
+      game.light.radius += 0.1f;
+      break;
+    }
+    case KEY_UP_ARROW: {
+      game.light.pos.z -= 0.5f;
+      break;
+    }
+    case KEY_DOWN_ARROW: {
+      game.light.pos.z += 0.5f;
+      break;
+    }
     default:
       break;
   }
@@ -174,9 +204,14 @@ void update_and_render(double dt) {
   }
 #endif
 
+  for (i32 x = -7; x < 9; ++x) {
+    for (i32 z = -12; z < 0; ++z) {
+      render_mesh(&plane, V3(x, 1, z), V3(1, 1, 1), V3(0, 0, 0), game.light);
+    }
+  }
   {
     f32 size = 1; // 2 + sinf(game.timer + 225);
-    render_mesh(&cube, game.object, V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40));
+    render_mesh(&cube, game.object, V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40), game.light);
   }
 
 #if 0

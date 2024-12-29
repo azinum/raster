@@ -209,9 +209,10 @@ Result wavefront_sort_mesh(Mesh* mesh) {
     for (u32 i = 0; i < mesh->vertex_index_count; ++i) {
       u32 index = mesh->vertex_index[i];
       u32 uv_index = mesh->uv_index[i];
+      (void)uv_index;
       u32 normal_index = mesh->normal_index[i];
 
-      mesh->uv[index] = uv[uv_index];
+      // mesh->uv[i] = uv[uv_index];
       mesh->normal[index] = normal[normal_index];
     }
 
@@ -228,21 +229,21 @@ Result objtoc(Mesh* mesh, const char* name) {
   printf("v3 %s_vertex[] = {", name);
   for (u32 i = 0; i < mesh->vertex_count; ++i) {
     v3 v = mesh->vertex[i];
-    printf("(v3){%.04f,%.04f,%.04f, 1},", v.x, v.y, v.z);
+    printf("{%.04f,%.04f,%.04f, 1},", v.x, v.y, v.z);
   }
   printf("};\n");
 
   printf("v3 %s_normal[] = {", name);
   for (u32 i = 0; i < mesh->normal_count; ++i) {
     v3 v = mesh->normal[i];
-    printf("(v3){%.04f,%.04f,%.04f},", v.x, v.y, v.z);
+    printf("{%.04f,%.04f,%.04f},", v.x, v.y, v.z);
   }
   printf("};\n");
 
   printf("v2 %s_uv[] = {", name);
   for (u32 i = 0; i < mesh->uv_count; ++i) {
     v2 v = mesh->uv[i];
-    printf("(v2){%.04f,%.04f},", v.x, v.y);
+    printf("{%.04f,%.04f},", v.x, v.y);
   }
   printf("};\n");
 
