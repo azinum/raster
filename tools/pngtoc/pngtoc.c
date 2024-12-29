@@ -1,5 +1,7 @@
 // pngtoc.c
 
+#define PRINT_MEMORY_FOOTPRINT
+
 #include <assert.h>
 #include <math.h>
 
@@ -61,6 +63,9 @@ defer:
 
 Result pixels2c(FILE* fp, u32* data, i32 x, i32 y, const char* name) {
   Result result = Ok;
+#ifdef PRINT_MEMORY_FOOTPRINT
+  fprintf(fp, "// %zu kb\n", (x * y * sizeof(u32)) / 1024);
+#endif
   fprintf(fp, "u32 %s_pixels[] = {\n", name);
   u32 index = 0;
   for (u32 py = 0; py < y; ++py) {

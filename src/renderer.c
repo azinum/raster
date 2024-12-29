@@ -1,6 +1,8 @@
 // renderer.c
 
 // #define DRAW_BB
+// #define NO_LIGHTING
+// #define UNIFORM_LIGHTING_POSITION
 #define BB_COLOR COLOR_RGBA(255, 255, 255, 150)
 #define DEBUG_OUT_OF_BOUNDS
 
@@ -354,6 +356,11 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation) {
   m4 mv = m4_multiply(proj, view);
   m4 mvp = m4_multiply(proj, m4_multiply(view, model));
 
+  v3 light_pos = V3(2, 0, -3);
+  f32 light_contrib = 0.0f;
+  f32 light_attenuation = 1.5f;
+  f32 light_strength = 2.0f;
+
   // proj * view * model * pos
   for (i32 i = 0; i < mesh->vertex_index_count; i += 3) {
     Color color = palette[color_index % LENGTH(palette)];
@@ -364,6 +371,20 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation) {
       mesh->vertex[mesh->vertex_index[i + 1]],
       mesh->vertex[mesh->vertex_index[i + 2]],
     };
+
+#ifdef UNIFORM_LIGHTING_POSITION
+    const v3 pos = position;
+#else
+
+    // vertex in world position
+    v3 vp[3] = {
+      m4_multiply_v3(model, v[0]),
+      m4_multiply_v3(model, v[1]),
+      m4_multiply_v3(model, v[2]),
+    };
+    v3 pos = V3_OP(V3_OP(vp[0], vp[1], +), vp[2], +);
+    pos = V3_OP1(pos, 1/3.0f, *);
+#endif
 
     // transformed vertices
     v3 vt[3] = {
@@ -422,7 +443,19 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation) {
 
     // TODO(lucas): clip against view frustum
 
-    render_fill_triangle(vt[0].x, vt[0].y, vt[1].x, vt[1].y, vt[2].x, vt[2].y, color);
+    light_contrib = 1.0f;
+#ifndef NO_LIGHTING
+    v3 light_delta = V3_OP(light_pos, pos, -);
+    v3 light_normalized = v3_normalize(light_delta);
+    f32 light_distance = v3_length(light_delta);
+    f32 light_attenuation_final = (light_strength) / (light_distance + light_attenuation);
+    light_contrib = v3_dot(normal, light_normalized) * light_attenuation_final;
+    light_contrib = CLAMP(light_contrib, 0, 1);
+#endif
+
+    Color actual_color = lerp_color(COLOR_RGB(0, 0, 0), color, light_contrib);
+
+    render_fill_triangle(vt[0].x, vt[0].y, vt[1].x, vt[1].y, vt[2].x, vt[2].y, actual_color);
     // render_line(vt[0].x, vt[0].y, vt[1].x, vt[1].y, COLOR_RGB(255, 255, 255));
     // render_line(vt[1].x, vt[1].y, vt[2].x, vt[2].y, COLOR_RGB(255, 255, 255));
     // render_line(vt[2].x, vt[2].y, vt[1].x, vt[1].y, COLOR_RGB(255, 255, 255));
