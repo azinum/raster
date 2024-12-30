@@ -549,7 +549,7 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation, Light light) {
     v3 light_delta = V3_OP(light.pos, pos, -);
     v3 light_normalized = v3_normalize(light_delta);
     f32 light_distance = v3_length_square(light_delta);
-    f32 light_attenuation_final = CLAMP(1.0f / (1.0f - (light_distance)/(light.radius*light.radius*light.radius)), 0, 1);
+    f32 light_attenuation_final = CLAMP(1.0f / (1.0f + (light_distance)/(light.radius*light.radius*light.radius)), 0, 1);
     light_contrib = v3_dot(world_normal, light_normalized) * light_attenuation_final * light.strength;
     light_contrib = CLAMP(light_contrib, light.ambience, 1);
 #endif
