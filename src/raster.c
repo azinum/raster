@@ -103,7 +103,7 @@ void init(void) {
   renderer_set_render_target(RENDER_TARGET_CLEAR);
   render_fill_rect_gradient(0, 0, display_get_width(), display_get_height(), COLOR_RGB(30, 40, 65), COLOR_RGB(0, 0, 0), V2(0, -1), V2(0, -1));
   renderer_set_render_target(RENDER_TARGET_COLOR);
-  camera_init(V3(0, -2, 0));
+  camera_init(V3(0, -2, -2));
   camera.rotation.pitch = -30;
   camera_update();
   game.light = light_create(V3(0, 0, -4.5), 1.0f, 4.25f);
@@ -212,9 +212,11 @@ void update_and_render(double dt) {
 
   renderer_begin_frame();
   renderer_clear();
-  for (i32 x = -7; x < 9; ++x) {
-    for (i32 z = -12; z < 0; ++z) {
-      render_mesh(&plane, V3(x, 1, z), V3(1, 1, 1), V3(0, 0, 0), game.light);
+  f32 scale = 0.5f;
+  f32 resize = 1.0f / scale;
+  for (f32 x = -7*resize; x < 9*resize; x += scale) {
+    for (f32 z = -12*resize; z < 0; z += scale) {
+      render_mesh(&plane, V3(x, 1, z), V3(scale, scale, scale), V3(0, 0, 0), game.light);
     }
   }
   {

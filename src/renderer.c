@@ -471,19 +471,22 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation, Light light) {
       mesh->uv[mesh->uv_index[i + 2]],
     };
 
-#ifdef UNIFORM_LIGHTING_POSITION
-    v3 pos = position;
-#else
     // vertex in world position
     v3 vp[3] = {
       m4_multiply_v3(model, v[0]),
       m4_multiply_v3(model, v[1]),
       m4_multiply_v3(model, v[2]),
     };
+    v3 pos = position;
+#ifndef UNIFORM_LIGHTING_POSITION
     // center of the triangle
-    v3 pos = V3_OP(V3_OP(vp[0], vp[1], +), vp[2], +);
+    pos = V3_OP(V3_OP(vp[0], vp[1], +), vp[2], +);
     pos = V3_OP1(pos, 1/3.0f, *);
 #endif
+
+    v3 wline1 = v3_sub(vp[1], vp[0]);
+    v3 wline2 = v3_sub(vp[2], vp[0]);
+    v3 world_normal = v3_normalize(v3_cross(wline1, wline2));
 
     // transformed vertices
     v3 vt[3] = {
@@ -501,7 +504,6 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation, Light light) {
     v3 line1 = v3_sub(vt[1], vt[0]);
     v3 line2 = v3_sub(vt[2], vt[0]);
     v3 normal = v3_normalize(v3_cross(line1, line2));
-
     // backface culling
     if (v3_dot(normal, v3_sub(camera.forward, pos)) < 0.0f) {
       continue;
@@ -546,9 +548,9 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation, Light light) {
 #ifndef NO_LIGHTING
     v3 light_delta = V3_OP(light.pos, pos, -);
     v3 light_normalized = v3_normalize(light_delta);
-    f32 light_distance = v3_length(light_delta);
-    f32 light_attenuation_final = CLAMP(1.0f / (1.0f - (light_distance*light_distance)/(light.radius*light.radius)), 0, 1);
-    light_contrib = v3_dot(normal, light_normalized) * light_attenuation_final * light.strength;
+    f32 light_distance = v3_length_square(light_delta);
+    f32 light_attenuation_final = CLAMP(1.0f / (1.0f - (light_distance)/(light.radius*light.radius*light.radius)), 0, 1);
+    light_contrib = v3_dot(world_normal, light_normalized) * light_attenuation_final * light.strength;
     light_contrib = CLAMP(light_contrib, light.ambience, 1);
 #endif
 
