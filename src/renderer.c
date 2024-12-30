@@ -106,8 +106,8 @@ bool triangle_bb(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Rect* rect) {
   // clamp to framebuffer edges
   min_x = MAX(min_x, 0);
   min_y = MAX(min_y, 0);
-  max_x = MIN(max_x, (i32)renderer.width - 1);
-  max_y = MIN(max_y, (i32)renderer.height - 1);
+  max_x = MIN(max_x, (i32)renderer.width);
+  max_y = MIN(max_y, (i32)renderer.height);
 
   rect->x1 = min_x;
   rect->y1 = min_y;
