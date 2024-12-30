@@ -221,7 +221,7 @@ void update_and_render(double dt) {
   }
   {
     f32 size = 1;
-    render_mesh(&cube, V3(0, 0, -6), V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40), game.light);
+    render_mesh(&cube, V3(0, sinf(game.timer * 0.8f), -6), V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40), game.light);
   }
 
   renderer_end_frame();

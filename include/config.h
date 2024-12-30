@@ -11,5 +11,6 @@ const f32 CAMERA_ZFAR     = 20.0f;
 const f32 CAMERA_ZNEAR    = 0.2f;
 const f32 CAMERA_FOV      = 65.0f;
 const bool DITHERING      = true;
+const bool FOG            = true;
 
 #endif // _CONFIG_H

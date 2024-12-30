@@ -78,6 +78,7 @@ typedef union m4 {
   extern f32 sqrtf(f32 n);
   extern f32 tanf(f32 n);
   extern f32 expf(f32 n);
+  extern f32 logf(f32 n);
 #else
   #include <math.h>
 #endif

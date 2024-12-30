@@ -18,6 +18,7 @@ typedef struct Renderer {
   i32 height;
   Blend blend_mode;
   bool dither;
+  bool fog;
   i32 num_primitives;         // triangles drawn
   i32 num_primitives_culled;  // triangles culled
 } Renderer;
@@ -27,6 +28,7 @@ static Renderer renderer;
 static Color* get_pixel_addr(i32 x, i32 y);
 static void draw_pixel(Color* pixel, Color color);
 static f32* get_zbuffer_addr(i32 x, i32 y);
+static f32 get_zbuffer_value(i32 x, i32 y);
 static bool normalize_rect(i32 x, i32 y, i32 w, i32 h, Rect* rect);
 static bool triangle_bb(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Rect* rect);
 static Color lerp_color(Color a, Color b, f32 t);
@@ -68,6 +70,13 @@ inline f32* get_zbuffer_addr(i32 x, i32 y) {
   ASSERT(x >= 0 && x < renderer.width && y >= 0 && y < renderer.height);
 #endif
   return &renderer.zbuffer[y * renderer.width + x];
+}
+
+inline f32 get_zbuffer_value(i32 x, i32 y) {
+#ifndef DEBUG_OUT_OF_BOUNDS
+  ASSERT(x >= 0 && x < renderer.width && y >= 0 && y < renderer.height);
+#endif
+  return renderer.zbuffer[y * renderer.width + x];
 }
 
 // clamp rect to boundary, occlude if not visible
@@ -188,10 +197,11 @@ void renderer_init(Color* color_buffer, Color* clear_buffer, u32 width, u32 heig
   renderer.height = height;
   renderer.blend_mode = BLEND_NONE;
   renderer.dither = DITHERING;
+  renderer.fog = FOG;
   renderer.num_primitives = 0;
   renderer.num_primitives_culled = 0;
   for (i32 i = 0; i < width * height; ++i) {
-    renderer.clear_zbuffer[i] = 10.0f;
+    renderer.clear_zbuffer[i] = 1.0f;
   }
   memcpy(&renderer.zbuffer[0], &renderer.clear_zbuffer[0], sizeof(f32) * width * height);
 }
@@ -577,7 +587,7 @@ void renderer_end_frame(void) {
     for (i32 x = 0; x < renderer.width; ++x) {
       Color* color = get_pixel_addr(x, y);
       f32* z = get_zbuffer_addr(x, y);
-      u8 c = CLAMP(UINT8_MAX * ABS(f32, 10.0f - *z), 0, UINT8_MAX);
+      u8 c = UINT8_MAX - CLAMP(UINT8_MAX * ABS(f32, (*z * *z * *z)), 0, UINT8_MAX);
       *color = COLOR_RGB(c, c, c);
     }
   }
@@ -590,6 +600,21 @@ void renderer_end_frame(void) {
         color->r -= (color->r * 0.1f) * d;
         color->g -= (color->g * 0.1f) * d;
         color->b -= (color->b * 0.1f) * d;
+      }
+    }
+  }
+  if (renderer.fog) {
+    Color fog_color = COLOR_RGB(210, 210, 230);
+    // f(x) = 1 / (ax * bx * cx);
+    f32 falloff_a = 250;
+    f32 falloff_b = 250;
+    f32 falloff_c = 8;
+    for (i32 y = 0; y < renderer.height; ++y) {
+      for (i32 x = 0; x < renderer.width; ++x) {
+        Color* color = get_pixel_addr(x, y);
+        f32 z = 1 - get_zbuffer_value(x, y);
+        f32 z_adjusted = CLAMP(1.0f / (1.0f + (falloff_a * z * falloff_b * z * falloff_c * z)), 0.0f, 1.0f);
+        *color = lerp_color(*color, fog_color, z_adjusted);
       }
     }
   }

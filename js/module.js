@@ -165,6 +165,7 @@ function update_debug_info(wasm, elem, dt) {
 			sqrtf: Math.sqrt,
 			tanf: Math.tan,
 			expf: Math.exp,
+			logf: Math.log,
 		}
 	})
 	.then(obj => {
