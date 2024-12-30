@@ -27,17 +27,13 @@
 #include "renderer.c"
 
 typedef struct Game {
-  v3 object;
   Light light;
   size_t tick;
   f32 timer;
   bool paused;
 } Game;
 
-#define OBJECT_INIT_POS V3(0, 0, -6)
-
 Game game = {
-  .object = OBJECT_INIT_POS,
   .light = {0},
   .tick = 0,
   .timer = 0,
@@ -46,7 +42,6 @@ Game game = {
 
 Color BUFFER[WINDOW_WIDTH * WINDOW_HEIGHT] = {0};
 Color CLEAR_BUFFER[WINDOW_WIDTH * WINDOW_HEIGHT] = {0};
-f32 ZBUFFER[WINDOW_WIDTH * WINDOW_HEIGHT] = {0};
 
 static f32 x_offset = 0;
 static f32 y_offset = 0;
@@ -115,7 +110,7 @@ void init(void) {
 }
 
 void mouse_click(i32 x, i32 y) {
-  game.object = V3(0, 0, 0);
+
 }
 
 void input_event(i32 code) {
@@ -123,7 +118,6 @@ void input_event(i32 code) {
   switch (code) {
     case KEY_R: {
       game.timer = 0;
-      game.object = OBJECT_INIT_POS;
       x_offset = random_f32() * 1000;
       y_offset = random_f32() * 1000;
       break;
@@ -134,29 +128,49 @@ void input_event(i32 code) {
     }
     // forward, backward
     case KEY_W: {
-      game.object.z -= speed;
+      camera.pos = V3_OP(
+        camera.pos,
+        V3(
+          camera.forward.x * -0.1f,
+          0,
+          camera.forward.z * -0.1f
+        ),
+        +
+      );
       break;
     }
     case KEY_S: {
-      game.object.z += speed;
+      camera.pos = V3_OP(
+        camera.pos,
+        V3(
+          camera.forward.x * 0.1f,
+          0,
+          camera.forward.z * 0.1f
+        ),
+        +
+      );
       break;
     }
     // left, right
     case KEY_A: {
-      game.object.x -= speed;
+      camera.rotation.yaw -= 5.0f;
+      // game.object.x -= speed;
       break;
     }
     case KEY_D: {
-      game.object.x += speed;
+      camera.rotation.yaw += 5.0f;
+      // game.object.x += speed;
       break;
     }
     // up, down
     case KEY_Z: {
-      game.object.y += speed;
+      // game.object.y += speed;
+      camera.pos.y += 0.5f;
       break;
     }
     case KEY_X: {
-      game.object.y -= speed;
+      // game.object.y -= speed;
+      camera.pos.y -= 0.5f;
       break;
     }
     case KEY_1: {
@@ -194,38 +208,21 @@ void update_and_render(double dt) {
     return;
   }
 
-  renderer_begin();
-  render_clear();
-#if 0
-  {
-    i32 x = game.x;
-    i32 y = game.y;
-    render_fill_triangle(x, y, x + 40, y - 30, x + 20, y + 100, COLOR_RGB(130, 100, 255));
-  }
-#endif
+  camera_update();
 
+  renderer_begin_frame();
+  renderer_clear();
   for (i32 x = -7; x < 9; ++x) {
     for (i32 z = -12; z < 0; ++z) {
       render_mesh(&plane, V3(x, 1, z), V3(1, 1, 1), V3(0, 0, 0), game.light);
     }
   }
   {
-    f32 size = 1; // 2 + sinf(game.timer + 225);
-    render_mesh(&cube, game.object, V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40), game.light);
+    f32 size = 1;
+    render_mesh(&cube, V3(0, 0, -6), V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40), game.light);
   }
 
-#if 0
-  f32 size = 1; //2 + sinf(game.timer + 225);
-  // size *= 0.2f;
-  for (i32 y = -3; y < 4; ++y) {
-    for (i32 x = -5; x < 6; ++x) {
-      for (i32 z = -8; z < 2; ++z) {
-        render_mesh(&cube, V3(x * 0.5f, y * 0.5f, 0.5f * z - 6), V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40));
-      }
-    }
-  }
-#endif
-  render_post();
+  renderer_end_frame();
   game.tick += 1;
   game.timer += dt;
 }

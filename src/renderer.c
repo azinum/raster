@@ -4,6 +4,7 @@
 // #define NO_LIGHTING
 #define UNIFORM_LIGHTING_POSITION
 // #define NO_TEXTURES
+// #define RENDER_ZBUFFER
 #define BB_COLOR COLOR_RGBA(255, 255, 255, 150)
 #define DEBUG_OUT_OF_BOUNDS
 
@@ -11,6 +12,8 @@ typedef struct Renderer {
   Color* target;
   Color* color_buffer;
   Color* clear_buffer;
+  f32 zbuffer[WINDOW_WIDTH * WINDOW_HEIGHT];
+  f32 clear_zbuffer[WINDOW_WIDTH * WINDOW_HEIGHT];
   i32 width;
   i32 height;
   Blend blend_mode;
@@ -23,6 +26,7 @@ static Renderer renderer;
 
 static Color* get_pixel_addr(i32 x, i32 y);
 static void draw_pixel(Color* pixel, Color color);
+static f32* get_zbuffer_addr(i32 x, i32 y);
 static bool normalize_rect(i32 x, i32 y, i32 w, i32 h, Rect* rect);
 static bool triangle_bb(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Rect* rect);
 static Color lerp_color(Color a, Color b, f32 t);
@@ -57,6 +61,13 @@ inline void draw_pixel(Color* pixel, Color color) {
     default:
       break;
   }
+}
+
+inline f32* get_zbuffer_addr(i32 x, i32 y) {
+#ifndef DEBUG_OUT_OF_BOUNDS
+  ASSERT(x >= 0 && x < renderer.width && y >= 0 && y < renderer.height);
+#endif
+  return &renderer.zbuffer[y * renderer.width + x];
 }
 
 // clamp rect to boundary, occlude if not visible
@@ -179,6 +190,10 @@ void renderer_init(Color* color_buffer, Color* clear_buffer, u32 width, u32 heig
   renderer.dither = DITHERING;
   renderer.num_primitives = 0;
   renderer.num_primitives_culled = 0;
+  for (i32 i = 0; i < width * height; ++i) {
+    renderer.clear_zbuffer[i] = 10.0f;
+  }
+  memcpy(&renderer.zbuffer[0], &renderer.clear_zbuffer[0], sizeof(f32) * width * height);
 }
 
 void renderer_set_blend_mode(Blend mode) {
@@ -335,7 +350,7 @@ void render_fill_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Color 
   renderer.num_primitives += 1;
 }
 
-void render_texture_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, v2 uv1, v2 uv2, v2 uv3, const Texture* const texture, f32 light_contrib) {
+void render_texture_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, f32 z1, f32 z2, f32 z3, v2 uv1, v2 uv2, v2 uv3, const Texture* const texture, f32 light_contrib) {
   bool inside = false;
   Rect bb = {0};
   if (!triangle_bb(x1, y1, x2, y2, x3, y3, &bb)) {
@@ -356,26 +371,32 @@ void render_texture_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, v2 
   render_rect(bb.x, bb.y, bb.w - bb.x, bb.h - bb.y, BB_COLOR);
 #endif
   for (i32 y = bb.y1; y < bb.y2; ++y) {
-    for (i32 x = bb.x1; x < bb.x2; ++x) {
+    i32 x = bb.x1;
+    for (; x < bb.x2; ++x) {
+      f32* zvalue = get_zbuffer_addr(x, y);
       i32 u1, u2, det = 0;
       if (barycentric(x1, y1, x2, y2, x3, y3, x, y, &u1, &u2, &det)) {
         Color* target = get_pixel_addr(x, y);
-#ifndef NO_TEXTURES
         f32 w1 = 0, w2 = 0, w3 = 0;
         if (det != 0) {
           w1 = u1 / (f32)det;
           w2 = u2 / (f32)det;
         }
         w3 = 1.0f - w1 - w2;
-        v2 uv = v2_cartesian(uv1, uv2, uv3, w1, w2, w3);
-        i32 x_coord = (ABS(i32, texture->width * uv.x)) % texture->width;
-        i32 y_coord = (ABS(i32, texture->height * uv.y)) % texture->height;
-        texel = texture_get_pixel(texture, x_coord, y_coord);
-        texel.r *= light_contrib;
-        texel.g *= light_contrib;
-        texel.b *= light_contrib;
+        f32 z = (z1 * w1) + (z2 * w2) + (z3 * w3); // barycentric to cartesian conversion
+        if (z < *zvalue) {
+          *zvalue = z;
+#ifndef NO_TEXTURES
+          v2 uv = v2_cartesian(uv1, uv2, uv3, w1, w2, w3);
+          i32 x_coord = (ABS(i32, texture->width * uv.x)) % texture->width;
+          i32 y_coord = (ABS(i32, texture->height * uv.y)) % texture->height;
+          texel = texture_get_pixel(texture, x_coord, y_coord);
+          texel.r *= light_contrib;
+          texel.g *= light_contrib;
+          texel.b *= light_contrib;
 #endif
-        draw_pixel(target, texel);
+          draw_pixel(target, texel);
+        }
       }
     }
   }
@@ -482,7 +503,7 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation, Light light) {
     v3 normal = v3_normalize(v3_cross(line1, line2));
 
     // backface culling
-    if (v3_dot(normal, v3_sub(camera.pos, pos)) < 0.0f) {
+    if (v3_dot(normal, v3_sub(camera.forward, pos)) < 0.0f) {
       continue;
     }
 
@@ -533,10 +554,7 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation, Light light) {
 
     Color actual_color = lerp_color(COLOR_RGB(0, 0, 0), color, light_contrib);
 
-    render_texture_triangle(vt[0].x, vt[0].y, vt[1].x, vt[1].y, vt[2].x, vt[2].y, uv[0], uv[1], uv[2], &tile_23, light_contrib);
-    // render_line(vt[0].x, vt[0].y, vt[1].x, vt[1].y, COLOR_RGB(255, 255, 255));
-    // render_line(vt[1].x, vt[1].y, vt[2].x, vt[2].y, COLOR_RGB(255, 255, 255));
-    // render_line(vt[2].x, vt[2].y, vt[1].x, vt[1].y, COLOR_RGB(255, 255, 255));
+    render_texture_triangle(vt[0].x, vt[0].y, vt[1].x, vt[1].y, vt[2].x, vt[2].y, vt[0].z, vt[1].z, vt[2].z, uv[0], uv[1], uv[2], &tile_23, light_contrib);
   }
 }
 
@@ -546,12 +564,22 @@ void renderer_set_clear_color(Color color) {
   } 
 }
 
-void renderer_begin(void) {
+void renderer_begin_frame(void) {
   renderer.num_primitives = 0;
   renderer.num_primitives_culled = 0;
 }
 
-void render_post(void) {
+void renderer_end_frame(void) {
+#ifdef RENDER_ZBUFFER
+  for (i32 y = 0; y < renderer.height; ++y) {
+    for (i32 x = 0; x < renderer.width; ++x) {
+      Color* color = get_pixel_addr(x, y);
+      f32* z = get_zbuffer_addr(x, y);
+      u8 c = CLAMP(UINT8_MAX * ABS(f32, 10.0f - *z), 0, UINT8_MAX);
+      *color = COLOR_RGB(c, c, c);
+    }
+  }
+#else
   if (renderer.dither) {
     for (i32 y = 0; y < renderer.height; ++y) {
       for (i32 x = 0; x < renderer.width; ++x) {
@@ -563,10 +591,12 @@ void render_post(void) {
       }
     }
   }
+#endif
 }
 
-void render_clear(void) {
+void renderer_clear(void) {
   memcpy(renderer.color_buffer, renderer.clear_buffer, sizeof(Color) * renderer.width * renderer.height);
+  memcpy(renderer.zbuffer, renderer.clear_zbuffer, sizeof(f32) * renderer.width * renderer.height);
 }
 
 i32 renderer_get_num_primitives(void) {
