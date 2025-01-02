@@ -5,8 +5,15 @@
 #define UNIFORM_LIGHTING_POSITION
 // #define NO_TEXTURES
 // #define RENDER_ZBUFFER
+#define NO_GI
 #define BB_COLOR COLOR_RGBA(255, 255, 255, 150)
-#define DEBUG_OUT_OF_BOUNDS
+
+#define VGI_X 16
+#define VGI_Y 3
+#define VGI_Z 12
+#define VGI_VOXEL_COUNT (VGI_X * VGI_Y * VGI_Z)
+
+static Vsample vgi_samples[VGI_VOXEL_COUNT] = {0};
 
 typedef struct Renderer {
   Color* target;
@@ -21,6 +28,9 @@ typedef struct Renderer {
   bool fog;
   i32 num_primitives;         // triangles drawn
   i32 num_primitives_culled;  // triangles culled
+#ifndef NO_GI
+  Voxelgi gi;
+#endif
 } Renderer;
 
 static Renderer renderer;
@@ -29,6 +39,7 @@ static Color* get_pixel_addr(i32 x, i32 y);
 static void draw_pixel(Color* pixel, Color color);
 static f32* get_zbuffer_addr(i32 x, i32 y);
 static f32 get_zbuffer_value(i32 x, i32 y);
+static f32 get_zbuffer_value_bounds_checked(i32 x, i32 y, f32 out_of_bounds_value);
 static bool normalize_rect(i32 x, i32 y, i32 w, i32 h, Rect* rect);
 static bool triangle_bb(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Rect* rect);
 static Color lerp_color(Color a, Color b, f32 t);
@@ -77,6 +88,13 @@ inline f32 get_zbuffer_value(i32 x, i32 y) {
   ASSERT(x >= 0 && x < renderer.width && y >= 0 && y < renderer.height);
 #endif
   return renderer.zbuffer[y * renderer.width + x];
+}
+
+f32 get_zbuffer_value_bounds_checked(i32 x, i32 y, f32 out_of_bounds_value) {
+  if (x >= 0 && x < renderer.width && y >= 0 && y < renderer.height) {
+    return renderer.zbuffer[y * renderer.width + x];
+  }
+  return out_of_bounds_value;
 }
 
 // clamp rect to boundary, occlude if not visible
@@ -204,6 +222,9 @@ void renderer_init(Color* color_buffer, Color* clear_buffer, u32 width, u32 heig
     renderer.clear_zbuffer[i] = 1.0f;
   }
   memcpy(&renderer.zbuffer[0], &renderer.clear_zbuffer[0], sizeof(f32) * width * height);
+#ifndef NO_GI
+  renderer.gi = voxelgi_init(VOXELGI_POS, VGI_X, VGI_Y, VGI_Z, vgi_samples);
+#endif
 }
 
 void renderer_set_blend_mode(Blend mode) {
@@ -434,11 +455,30 @@ void render_fill_circle(i32 px, i32 py, i32 r, Color color) {
   }
 }
 
+void render_point_3d(v3 pos, Color color) {
+  m4 model = translate(pos);
+  m4 mvp = m4_multiply(projection, m4_multiply(view, model));
+
+  v3 vt = m4_multiply_v3(mvp, V3(0, 0, 0));
+  vt = v3_div_scalar(vt, vt.w);
+  if (trivial_reject(vt.x, vt.y, -1, 1, -1, 1) != 0) {
+    return;
+  }
+  if (vt.w < CAMERA_ZNEAR) {
+    return;
+  }
+  vt.x += 1.0f;
+  vt.y += 1.0f;
+  vt.x *= 0.5f * renderer.width;
+  vt.y *= 0.5f * renderer.height;
+  Color* target = get_pixel_addr((i32)vt.x, (i32)vt.y);
+  *target = color;
+}
+
 // -z forward, +z back
 // -x left, +x right
 // +y up, -y down
-void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation, Light light) {
-  m4 proj = perspective(CAMERA_FOV, renderer.width / (f32)renderer.height, CAMERA_ZNEAR, CAMERA_ZFAR);
+void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation, Light light) {
   m4 model = translate(position);
 
   model = m4_multiply(model, rotate(rotation.y, V3(0, 1, 0)));
@@ -459,8 +499,8 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation, Light light) {
   random_init(1234);
   i32 color_index = 0;
 
-  m4 mv = m4_multiply(proj, view);
-  m4 mvp = m4_multiply(proj, m4_multiply(view, model));
+  m4 mv = m4_multiply(projection, view); // TODO: calculate once per frame
+  m4 mvp = m4_multiply(projection, m4_multiply(view, model));
 
   f32 light_contrib = 0.0f;
 
@@ -530,7 +570,11 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation, Light light) {
       vt[2],
     };
 
-    if (trivial_reject(vt[0].x, vt[0].y, -1, 1, -1, 1) != 0 && trivial_reject(vt[1].x, vt[1].y, -1, 1, -1, 1) != 0 && trivial_reject(vt[2].x, vt[2].y, -1, 1, -1, 1) != 0) {
+    const f32 x_min = -1.05f;
+    const f32 x_max =  1.05f;
+    const f32 y_min = -1.05f;
+    const f32 y_max =  1.05f;
+    if (trivial_reject(vt[0].x, vt[0].y, x_min, x_max, y_min, y_max) != 0 && trivial_reject(vt[1].x, vt[1].y, x_min, x_max, y_min, y_max) != 0 && trivial_reject(vt[2].x, vt[2].y, x_min, x_max, y_min, y_max) != 0) {
       continue;
     }
 
@@ -562,11 +606,14 @@ void render_mesh(Mesh* mesh, v3 position, v3 size, v3 rotation, Light light) {
     f32 light_attenuation_final = CLAMP(1.0f / (1.0f + (light_distance)/(light.radius*light.radius*light.radius)), 0, 1);
     light_contrib = v3_dot(world_normal, light_normalized) * light_attenuation_final * light.strength;
     light_contrib = CLAMP(light_contrib, light.ambience, 1);
+#ifndef NO_GI
+    voxelgi_update_voxel(&renderer.gi, position, world_normal, light_contrib);
+    f32 gi_contrib = voxelgi_get_voxel_weight(&renderer.gi, pos);
+    light_contrib = CLAMP(light_contrib - 1 / (1.0f + (20*gi_contrib * 10*gi_contrib)), 0, 1);
+#endif
 #endif
 
-    Color actual_color = lerp_color(COLOR_RGB(0, 0, 0), color, light_contrib);
-
-    render_texture_triangle(vt[0].x, vt[0].y, vt[1].x, vt[1].y, vt[2].x, vt[2].y, vt[0].z, vt[1].z, vt[2].z, uv[0], uv[1], uv[2], &tile_23, light_contrib);
+    render_texture_triangle(vt[0].x, vt[0].y, vt[1].x, vt[1].y, vt[2].x, vt[2].y, vt[0].z, vt[1].z, vt[2].z, uv[0], uv[1], uv[2], texture, light_contrib);
   }
 }
 
@@ -576,9 +623,12 @@ void renderer_set_clear_color(Color color) {
   } 
 }
 
-void renderer_begin_frame(void) {
+void renderer_begin_frame(f32 dt) {
   renderer.num_primitives = 0;
   renderer.num_primitives_culled = 0;
+#ifndef NO_GI
+  voxelgi_update(&renderer.gi, dt);
+#endif
 }
 
 void renderer_end_frame(void) {
@@ -592,6 +642,21 @@ void renderer_end_frame(void) {
     }
   }
 #else
+  if (renderer.fog) {
+    Color fog_color = COLOR_RGB(210, 210, 230);
+    // f(x) = 1 / (ax * bx * cx);
+    f32 falloff_a = 500;
+    f32 falloff_b = 250;
+    f32 falloff_c = 32;
+    for (i32 y = 0; y < renderer.height; ++y) {
+      for (i32 x = 0; x < renderer.width; ++x) {
+        Color* color = get_pixel_addr(x, y);
+        f32 z = 1 - get_zbuffer_value(x, y);
+        f32 z_adjusted = CLAMP(1.0f / (1.0f + (falloff_a * z * falloff_b * z * falloff_c * z)), 0.0f, 1.0f);
+        *color = lerp_color(*color, fog_color, z_adjusted);
+      }
+    }
+  }
   if (renderer.dither) {
     for (i32 y = 0; y < renderer.height; ++y) {
       for (i32 x = 0; x < renderer.width; ++x) {
@@ -603,21 +668,9 @@ void renderer_end_frame(void) {
       }
     }
   }
-  if (renderer.fog) {
-    Color fog_color = COLOR_RGB(210, 210, 230);
-    // f(x) = 1 / (ax * bx * cx);
-    f32 falloff_a = 250;
-    f32 falloff_b = 250;
-    f32 falloff_c = 8;
-    for (i32 y = 0; y < renderer.height; ++y) {
-      for (i32 x = 0; x < renderer.width; ++x) {
-        Color* color = get_pixel_addr(x, y);
-        f32 z = 1 - get_zbuffer_value(x, y);
-        f32 z_adjusted = CLAMP(1.0f / (1.0f + (falloff_a * z * falloff_b * z * falloff_c * z)), 0.0f, 1.0f);
-        *color = lerp_color(*color, fog_color, z_adjusted);
-      }
-    }
-  }
+#endif
+#ifndef NO_GI
+  voxelgi_render(&renderer.gi);
 #endif
 }
 

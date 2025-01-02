@@ -71,6 +71,7 @@ typedef union m4 {
 #define SWAP(T, a, b) do { T t = a; a = b; b = t; } while (0)
 
 #define EXPAND_V3(A) A.x, A.y, A.z
+#define EPS 1e-6
 
 #ifdef NO_MATH
   extern f32 sinf(f32 n);

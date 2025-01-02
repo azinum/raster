@@ -17,6 +17,7 @@
 #include "texture.h"
 #include "assets.h"
 #include "light.h"
+#include "voxelgi.h"
 #include "renderer.h"
 
 #include "maths.c"
@@ -24,6 +25,7 @@
 #include "mesh.c"
 #include "texture.c"
 #include "light.c"
+#include "voxelgi.c"
 #include "renderer.c"
 
 typedef struct Game {
@@ -92,16 +94,20 @@ const i32 KEY_Z = 41;
 void init(void);
 void mouse_click(i32 x, i32 y);
 void input_event(i32 code);
-void update_and_render(double dt);
+void update_and_render(f32 dt);
 u32 display_get_width(void);
 u32 display_get_height(void);
 void* display_get_addr(void);
 
 void init(void) {
-  random_init(1234);
+  static bool once = true;
+  if (once) {
+    random_init(1234);
+    once = false;
+  }
   renderer_init((Color*)display_get_addr(), (Color*)&CLEAR_BUFFER[0], display_get_width(), display_get_height());
   renderer_set_render_target(RENDER_TARGET_CLEAR);
-  render_fill_rect_gradient(0, 0, display_get_width(), display_get_height(), COLOR_RGB(30, 40, 65), COLOR_RGB(0, 0, 0), V2(0, -1), V2(0, -1));
+  render_fill_rect_gradient(0, 0, display_get_width(), display_get_height(), COLOR_RGB(10, 10, 15), COLOR_RGB(0, 0, 0), V2(0, -1), V2(0, -1));
   renderer_set_render_target(RENDER_TARGET_COLOR);
   camera_init(V3(0, -2, -2));
   camera.rotation.pitch = -30;
@@ -120,6 +126,7 @@ void input_event(i32 code) {
       game.timer = 0;
       x_offset = random_f32() * 1000;
       y_offset = random_f32() * 1000;
+      init();
       break;
     }
     case KEY_SPACE: {
@@ -154,22 +161,26 @@ void input_event(i32 code) {
     // left, right
     case KEY_A: {
       camera.rotation.yaw -= 5.0f;
-      // game.object.x -= speed;
       break;
     }
     case KEY_D: {
       camera.rotation.yaw += 5.0f;
-      // game.object.x += speed;
+      break;
+    }
+    case KEY_Q: {
+      camera.rotation.pitch += 5.0f;
+      break;
+    }
+    case KEY_E: {
+      camera.rotation.pitch -= 5.0f;
       break;
     }
     // up, down
     case KEY_Z: {
-      // game.object.y += speed;
       camera.pos.y += 0.5f;
       break;
     }
     case KEY_X: {
-      // game.object.y -= speed;
       camera.pos.y -= 0.5f;
       break;
     }
@@ -202,7 +213,7 @@ void input_event(i32 code) {
   }
 }
 
-void update_and_render(double dt) {
+void update_and_render(f32 dt) {
   i32 fps = (i32)(1.0f / dt);
   if (game.paused) {
     return;
@@ -210,18 +221,18 @@ void update_and_render(double dt) {
 
   camera_update();
 
-  renderer_begin_frame();
+  renderer_begin_frame(dt);
   renderer_clear();
-  f32 scale = 0.5f;
+  f32 scale = 1.0f;
   f32 resize = 1.0f / scale;
   for (f32 x = -7*resize; x < 9*resize; x += scale) {
     for (f32 z = -12*resize; z < 0; z += scale) {
-      render_mesh(&plane, V3(x, 1, z), V3(scale, scale, scale), V3(0, 0, 0), game.light);
+      render_mesh(&plane, &tile_23, V3(x, 1, z), V3(scale, scale, scale), V3(0, 0, 0), game.light);
     }
   }
   {
     f32 size = 1;
-    render_mesh(&cube, V3(0, sinf(game.timer * 0.8f), -6), V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40), game.light);
+    render_mesh(&cube, &brick_22, V3(0, sinf(game.timer * 0.8f), -6), V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40), game.light);
   }
 
   renderer_end_frame();
