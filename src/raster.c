@@ -208,6 +208,26 @@ void input_event(i32 code) {
       game.light.pos.z += 0.5f;
       break;
     }
+    case KEY_LEFT_ARROW: {
+      game.light.pos.x -= 0.5f;
+      break;
+    }
+    case KEY_RIGHT_ARROW: {
+      game.light.pos.x += 0.5f;
+      break;
+    }
+    case KEY_U: {
+      renderer_toggle_dither();
+      break;
+    }
+    case KEY_I: {
+      renderer_toggle_fog();
+      break;
+    }
+    case KEY_O: {
+      renderer_toggle_edge_detection();
+      break;
+    }
     default:
       break;
   }
@@ -232,7 +252,11 @@ void update_and_render(f32 dt) {
   }
   {
     f32 size = 1;
-    render_mesh(&cube, &brick_22, V3(0, sinf(game.timer * 0.8f), -6), V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40), game.light);
+    render_mesh(&cube, &brick_22, V3(0, 1.5 * sinf(game.timer * 0.8f), -6), V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40), game.light);
+  }
+  {
+    f32 size = 1;
+    render_mesh(&cube, &brick_22, V3(2, sinf(game.timer * 0.8f) - 1, -5), V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40), game.light);
   }
 
   renderer_end_frame();

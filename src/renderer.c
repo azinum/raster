@@ -5,8 +5,11 @@
 #define UNIFORM_LIGHTING_POSITION
 // #define NO_TEXTURES
 // #define RENDER_ZBUFFER
+// #define RENDER_NORMAL_BUFFER
 #define NO_GI
+
 #define BB_COLOR COLOR_RGBA(255, 255, 255, 150)
+#define EDGE_DETECTION_COLOR COLOR_RGB(0, 0, 0)
 
 #define VGI_X 16
 #define VGI_Y 3
@@ -21,13 +24,17 @@ typedef struct Renderer {
   Color* clear_buffer;
   f32 zbuffer[WINDOW_WIDTH * WINDOW_HEIGHT];
   f32 clear_zbuffer[WINDOW_WIDTH * WINDOW_HEIGHT];
+  Color normal_buffer[WINDOW_WIDTH * WINDOW_HEIGHT];
+  Color clear_normal_buffer[WINDOW_WIDTH * WINDOW_HEIGHT];
   i32 width;
   i32 height;
   Blend blend_mode;
   bool dither;
   bool fog;
+  bool edge_detection;
   i32 num_primitives;         // triangles drawn
   i32 num_primitives_culled;  // triangles culled
+  f32 dt;
 #ifndef NO_GI
   Voxelgi gi;
 #endif
@@ -36,6 +43,8 @@ typedef struct Renderer {
 static Renderer renderer;
 
 static Color* get_pixel_addr(i32 x, i32 y);
+static Color* get_pixel_addr_from_buffer(Color* buffer, i32 x, i32 y);
+static Color* get_pixel_addr_bounds_checked(Color* buffer, i32 x, i32 y);
 static void draw_pixel(Color* pixel, Color color);
 static f32* get_zbuffer_addr(i32 x, i32 y);
 static f32 get_zbuffer_value(i32 x, i32 y);
@@ -52,11 +61,24 @@ static bool degenerate(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3);
 static u8 trivial_reject(f32 x, f32 y, const f32 x_min, const f32 x_max, const f32 y_min, const f32 y_max);
 
 inline Color* get_pixel_addr(i32 x, i32 y) {
-
 #ifndef DEBUG_OUT_OF_BOUNDS
   ASSERT(x >= 0 && x < renderer.width && y >= 0 && y < renderer.height);
 #endif
   return &renderer.target[y * renderer.width + x];
+}
+
+inline Color* get_pixel_addr_from_buffer(Color* buffer, i32 x, i32 y) {
+#ifndef DEBUG_OUT_OF_BOUNDS
+  ASSERT(x >= 0 && x < renderer.width && y >= 0 && y < renderer.height);
+#endif
+  return &buffer[y * renderer.width + x];
+}
+
+Color* get_pixel_addr_bounds_checked(Color* buffer, i32 x, i32 y) {
+  if (x >= 0 && x < renderer.width && y >= 0 && y < renderer.height) {
+    return &buffer[y * renderer.width + x];
+  }
+  return NULL;
 }
 
 // TODO: implement
@@ -216,12 +238,18 @@ void renderer_init(Color* color_buffer, Color* clear_buffer, u32 width, u32 heig
   renderer.blend_mode = BLEND_NONE;
   renderer.dither = DITHERING;
   renderer.fog = FOG;
+  renderer.edge_detection = EDGE_DETECTION;
   renderer.num_primitives = 0;
   renderer.num_primitives_culled = 0;
+  renderer.dt = 0;
   for (i32 i = 0; i < width * height; ++i) {
     renderer.clear_zbuffer[i] = 1.0f;
   }
   memcpy(&renderer.zbuffer[0], &renderer.clear_zbuffer[0], sizeof(f32) * width * height);
+  for (i32 i = 0; i < width * height; ++i) {
+    renderer.clear_normal_buffer[i] = COLOR_RGB(0, 0, 0);
+  }
+  memcpy(&renderer.normal_buffer[0], &renderer.clear_normal_buffer[0], sizeof(Color) * width * height);
 #ifndef NO_GI
   renderer.gi = voxelgi_init(VOXELGI_POS, VGI_X, VGI_Y, VGI_Z, vgi_samples);
 #endif
@@ -359,7 +387,6 @@ void render_line(i32 x1, i32 y1, i32 x2, i32 y2, Color color) {
 }
 
 void render_fill_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Color color) {
-  bool inside = false;
   Rect bb = {0};
   if (!triangle_bb(x1, y1, x2, y2, x3, y3, &bb)) {
     renderer.num_primitives_culled += 1;
@@ -382,7 +409,6 @@ void render_fill_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Color 
 }
 
 void render_texture_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, f32 z1, f32 z2, f32 z3, v2 uv1, v2 uv2, v2 uv3, const Texture* const texture, f32 light_contrib) {
-  bool inside = false;
   Rect bb = {0};
   if (!triangle_bb(x1, y1, x2, y2, x3, y3, &bb)) {
     renderer.num_primitives_culled += 1;
@@ -417,6 +443,65 @@ void render_texture_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, f32
         f32 z = (z1 * w1) + (z2 * w2) + (z3 * w3); // barycentric to cartesian conversion
         if (z < *zvalue) {
           *zvalue = z;
+#ifndef NO_TEXTURES
+          v2 uv = v2_cartesian(uv1, uv2, uv3, w1, w2, w3);
+          i32 x_coord = (ABS(i32, texture->width * uv.x)) % texture->width;
+          i32 y_coord = (ABS(i32, texture->height * uv.y)) % texture->height;
+          texel = texture_get_pixel(texture, x_coord, y_coord);
+          texel.r *= light_contrib;
+          texel.g *= light_contrib;
+          texel.b *= light_contrib;
+#endif
+          draw_pixel(target, texel);
+        }
+      }
+    }
+  }
+  renderer.num_primitives += 1;
+}
+
+// TODO: implement per-pixel shading
+void render_triangle_advanced(v3 p1, v3 p2, v3 p3, v2 uv1, v2 uv2, v2 uv3, const Texture* texture, v3 world_normal, v3 world_position, f32 light_contrib) {
+  Rect bb = {0};
+  if (!triangle_bb(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, &bb)) {
+    renderer.num_primitives_culled += 1;
+    return;
+  }
+
+  Color texel = COLOR_RGB(255, 0, 255);
+#ifdef NO_TEXTURES
+  texel = COLOR_RGB(
+    UINT8_MAX * light_contrib,
+    UINT8_MAX * light_contrib,
+    UINT8_MAX * light_contrib
+  );
+#endif
+#ifdef DRAW_BB
+  render_rect(bb.x, bb.y, bb.w - bb.x, bb.h - bb.y, BB_COLOR);
+#endif
+
+  for (i32 y = bb.y1; y < bb.y2; ++y) {
+    i32 x = bb.x1;
+    for (; x < bb.x2; ++x) {
+      f32* zvalue = get_zbuffer_addr(x, y);
+      i32 u1, u2, det = 0;
+      // TODO: use v3_barycentric here instead
+      if (barycentric(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, x, y, &u1, &u2, &det)) {
+        Color* target = get_pixel_addr(x, y);
+        f32 w1 = 0, w2 = 0, w3 = 0;
+        if (det != 0) {
+          w1 = u1 / (f32)det;
+          w2 = u2 / (f32)det;
+        }
+        w3 = 1.0f - w1 - w2;
+        f32 z = (p1.z * w1) + (p2.z * w2) + (p3.z * w3);
+        if (z < *zvalue) {
+          *zvalue = z;
+          renderer.normal_buffer[y * renderer.width + x] = COLOR_RGB(
+            UINT8_MAX * ABS(f32, world_normal.x),
+            UINT8_MAX * ABS(f32, world_normal.y),
+            UINT8_MAX * ABS(f32, world_normal.z)
+          );
 #ifndef NO_TEXTURES
           v2 uv = v2_cartesian(uv1, uv2, uv3, w1, w2, w3);
           i32 x_coord = (ABS(i32, texture->width * uv.x)) % texture->width;
@@ -613,7 +698,8 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
 #endif
 #endif
 
-    render_texture_triangle(vt[0].x, vt[0].y, vt[1].x, vt[1].y, vt[2].x, vt[2].y, vt[0].z, vt[1].z, vt[2].z, uv[0], uv[1], uv[2], texture, light_contrib);
+    // render_texture_triangle(vt[0].x, vt[0].y, vt[1].x, vt[1].y, vt[2].x, vt[2].y, vt[0].z, vt[1].z, vt[2].z, uv[0], uv[1], uv[2], texture, light_contrib);
+    render_triangle_advanced(vt[0], vt[1], vt[2], uv[0], uv[1], uv[2], texture, world_normal, pos, light_contrib);
   }
 }
 
@@ -626,6 +712,7 @@ void renderer_set_clear_color(Color color) {
 void renderer_begin_frame(f32 dt) {
   renderer.num_primitives = 0;
   renderer.num_primitives_culled = 0;
+  renderer.dt = dt;
 #ifndef NO_GI
   voxelgi_update(&renderer.gi, dt);
 #endif
@@ -636,12 +723,51 @@ void renderer_end_frame(void) {
   for (i32 y = 0; y < renderer.height; ++y) {
     for (i32 x = 0; x < renderer.width; ++x) {
       Color* color = get_pixel_addr(x, y);
-      f32* z = get_zbuffer_addr(x, y);
-      u8 c = UINT8_MAX - CLAMP(UINT8_MAX * ABS(f32, (*z * *z * *z)), 0, UINT8_MAX);
+      f32 z = *get_zbuffer_addr(x, y);
+      u8 c = UINT8_MAX * (z * z * z * z); //- CLAMP(UINT8_MAX * ABS(f32, (*z * *z * *z)), 0, UINT8_MAX);
       *color = COLOR_RGB(c, c, c);
     }
   }
+#elif defined(RENDER_NORMAL_BUFFER)
+  for (i32 y = 0; y < renderer.height; ++y) {
+    for (i32 x = 0; x < renderer.width; ++x) {
+      Color* color = get_pixel_addr(x, y);
+      Color* normal = get_pixel_addr_from_buffer(renderer.normal_buffer, x, y);
+      *color = *normal;
+    }
+  }
+
 #else
+
+  if (renderer.edge_detection) {
+    f32 normalization_factor = 1.0f / UINT8_MAX;
+    for (i32 y = 0; y < renderer.height; ++y) {
+      for (i32 x = 0; x < renderer.width; ++x) {
+        Color* target = get_pixel_addr(x, y);
+        Color* sample = get_pixel_addr_from_buffer(renderer.normal_buffer, x, y);
+        f32 f = 0;
+        f32 sample_count = 0;
+        v3 sample_v = V3_OP1(V3(sample->r, sample->g, sample->b), normalization_factor, *);
+        for (i32 sy = -1; sy < 1; ++sy) {
+          for (i32 sx = -1; sx < 1; ++sx, ++sample_count) {
+            if (sx == 0 && sy == 0) {
+              continue;
+            }
+            Color* n = get_pixel_addr_bounds_checked(renderer.normal_buffer, x + sx, y + sy);
+            if (!n) {
+              f += 1;
+              continue;
+            }
+            v3 n_v = V3_OP1(V3(n->r, n->g, n->b), normalization_factor, *);
+            f += ABS(f32, v3_dot(n_v, sample_v));
+          }
+        }
+        f *= 1.0f / sample_count;
+        *target = lerp_color(*target, EDGE_DETECTION_COLOR, 1.0f - f);
+      }
+    }
+  }
+
   if (renderer.fog) {
     Color fog_color = COLOR_RGB(210, 210, 230);
     // f(x) = 1 / (ax * bx * cx);
@@ -670,13 +796,14 @@ void renderer_end_frame(void) {
   }
 #endif
 #ifndef NO_GI
-  voxelgi_render(&renderer.gi);
+  // voxelgi_render(&renderer.gi);
 #endif
 }
 
 void renderer_clear(void) {
   memcpy(renderer.color_buffer, renderer.clear_buffer, sizeof(Color) * renderer.width * renderer.height);
   memcpy(renderer.zbuffer, renderer.clear_zbuffer, sizeof(f32) * renderer.width * renderer.height);
+  memcpy(&renderer.normal_buffer[0], &renderer.clear_normal_buffer[0], sizeof(Color) * renderer.width * renderer.height);
 }
 
 i32 renderer_get_num_primitives(void) {
@@ -685,4 +812,16 @@ i32 renderer_get_num_primitives(void) {
 
 i32 renderer_get_num_primitives_culled(void) {
   return renderer.num_primitives_culled;
+}
+
+void renderer_toggle_fog(void) {
+  renderer.fog = !renderer.fog;
+}
+
+void renderer_toggle_dither(void) {
+  renderer.dither = !renderer.dither;
+}
+
+void renderer_toggle_edge_detection(void) {
+  renderer.edge_detection = !renderer.edge_detection;
 }
