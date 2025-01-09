@@ -110,6 +110,7 @@ void render_triangle_advanced(v3 p1, v3 p2, v3 p3, v2 uv1, v2 uv2, v2 uv3, const
 void render_fill_circle(i32 x, i32 y, i32 r, Color color);
 void render_fill_circle_3d(v3 pos, f32 r, Color color);
 void render_point_3d(v3 pos, Color color);
+void render_axis(v3 origin);
 void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation, Light light);
 void renderer_set_clear_color(Color color);
 void renderer_begin_frame(f32 dt);

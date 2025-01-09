@@ -115,10 +115,10 @@ void init(void) {
   renderer_set_render_target(RENDER_TARGET_CLEAR);
   render_fill_rect_gradient(0, 0, display_get_width(), display_get_height(), COLOR_RGB(5, 5, 5), COLOR_RGB(0, 0, 0), V2(0, -1), V2(0, -1));
   renderer_set_render_target(RENDER_TARGET_COLOR);
-  camera_init(V3(0, -1, 0));
-  camera.rotation.pitch = 20;
+  camera_init(V3(0, 1, 0));
+  camera.rotation.pitch = -20;
   camera_update();
-  game.light = light_create(V3(0, 0, -4.5), 1.0f, 4.25f);
+  game.light = light_create(V3(0, -0.8f, -4.5), 2.0f, 2.5f);
 }
 
 void mouse_click(i32 x, i32 y) {
@@ -190,10 +190,10 @@ void update_and_render(f32 dt) {
     );
   }
   if (key_down[KEY_A]) {
-    camera.rotation.yaw -= rotation_speed * dt;
+    camera.rotation.yaw += rotation_speed * dt;
   }
   if (key_down[KEY_D]) {
-    camera.rotation.yaw += rotation_speed * dt;
+    camera.rotation.yaw -= rotation_speed * dt;
   }
   if (key_down[KEY_Q]) {
     camera.rotation.pitch += rotation_speed * dt;
@@ -208,16 +208,16 @@ void update_and_render(f32 dt) {
     camera.pos.y += speed * dt;
   }
   if (key_down[KEY_1]) {
-    game.light.strength = CLAMP(game.light.strength - light_adjust_speed * dt, 0, 10);
+    game.light.strength = CLAMP(game.light.strength - light_adjust_speed * dt, 0, 20);
   }
   if (key_down[KEY_2]) {
-    game.light.strength = CLAMP(game.light.strength + light_adjust_speed * dt, 0, 10);
+    game.light.strength = CLAMP(game.light.strength + light_adjust_speed * dt, 0, 20);
   }
   if (key_down[KEY_3]) {
-    game.light.radius = CLAMP(game.light.radius - light_adjust_speed * dt, 0.1f, 100);
+    game.light.radius = CLAMP(game.light.radius - light_adjust_speed * dt, 0.01f, 100);
   }
   if (key_down[KEY_4]) {
-    game.light.radius = CLAMP(game.light.radius + light_adjust_speed * dt, 0.1f, 100);
+    game.light.radius = CLAMP(game.light.radius + light_adjust_speed * dt, 0.01f, 100);
   }
   if (key_down[KEY_UP_ARROW]) {
     game.light.pos.z -= speed * dt;
@@ -270,13 +270,13 @@ void update_and_render(f32 dt) {
   }
   {
     f32 size = 1;
-    render_mesh(&cube, &brick_22, V3(0, 1.5 * sinf(game.timer * 0.8f), -6), V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40), game.light);
+    render_mesh(&cube, &brick_22, V3(0, 1.5f * sinf(game.timer * 0.8f), -6), V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40), game.light);
   }
   {
     f32 size = 1;
     render_mesh(&cube, &brick_22, V3(2, sinf(game.timer * 0.8f) - 1, -5), V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40), game.light);
   }
-
+  render_axis(V3(0, 0, 0));
   renderer_end_frame();
   game.tick += 1;
   game.timer += dt;

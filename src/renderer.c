@@ -4,7 +4,7 @@
 // #define NO_LIGHTING
 // #define UNIFORM_LIGHTING_POSITION
 // #define NO_TEXTURES
-#define VOXELGI
+// #define VOXELGI
 
 #define BB_COLOR COLOR_RGBA(255, 255, 255, 150)
 
@@ -601,9 +601,12 @@ void render_point_3d(v3 pos, Color color) {
   *target = color;
 }
 
-// -z forward, +z back
-// -x left, +x right
-// +y up, -y down
+void render_axis(v3 origin) {
+  render_line_3d(origin, V3_OP(origin, V3(0, 1, 0), +), COLOR_RGB(0, 255, 0));
+  render_line_3d(origin, V3_OP(origin, V3(1, 0, 0), +), COLOR_RGB(255, 0, 0));
+  render_line_3d(origin, V3_OP(origin, V3(0, 0, 1), +), COLOR_RGB(0, 0, 255));
+}
+
 void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation, Light light) {
   m4 model = translate(position);
 
