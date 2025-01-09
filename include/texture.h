@@ -25,5 +25,6 @@ typedef struct Texture {
 } Texture;
 
 Color texture_get_pixel(const Texture* const texture, const i32 x, const i32 y);
+Color texture_get_pixel_wrapped(const Texture* const texture, const i32 x, const i32 y);
 
 #endif // _TEXTURE_H

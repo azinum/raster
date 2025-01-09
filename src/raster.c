@@ -226,10 +226,10 @@ void update_and_render(f32 dt) {
     game.light.pos.z += speed * dt;
   }
   if (key_down[KEY_LEFT_ARROW]) {
-    game.light.pos.x -= speed * dt;
+    game.light.pos.x += speed * dt;
   }
   if (key_down[KEY_RIGHT_ARROW]) {
-    game.light.pos.x += speed * dt;
+    game.light.pos.x -= speed * dt;
   }
   if (key_down[KEY_J]) {
     game.light.pos.y += speed * dt;
@@ -277,6 +277,7 @@ void update_and_render(f32 dt) {
     render_mesh(&cube, &brick_22, V3(2, sinf(game.timer * 0.8f) - 1, -5), V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40), game.light);
   }
   render_axis(V3(0, 0, 0));
+  render_texture_with_mask_and_tint(&sun_icon, 5, 5, 16, 16, COLOR_RGB(255, 0, 255), COLOR_RGB(255, 255, 100));
   renderer_end_frame();
   game.tick += 1;
   game.timer += dt;

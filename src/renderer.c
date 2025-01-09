@@ -601,6 +601,69 @@ void render_point_3d(v3 pos, Color color) {
   *target = color;
 }
 
+void render_texture(Texture* texture, i32 x, i32 y, i32 w, i32 h) {
+  Rect rect;
+  if (!normalize_rect(x, y, w, h, &rect)) {
+    return;
+  }
+  i32 ty = 0;
+  v2 uv = V2(0, 0);
+  for (i32 ry = rect.y; ry < rect.y + rect.h; ++ry, ++ty) {
+    i32 tx = 0;
+    i32 rx = rect.x;
+    Color* target = get_pixel_addr(rx, ry);
+    for (; rx < rect.x + rect.w; ++rx, ++tx, ++target) {
+      uv = V2(tx / (f32)rect.w, ty / (f32)rect.h);
+      Color color = texture_get_pixel_wrapped(texture, uv.x * texture->width, uv.y * texture->height);
+      draw_pixel(target, color);
+    }
+  }
+}
+
+void render_texture_with_mask(Texture* texture, i32 x, i32 y, i32 w, i32 h, Color mask) {
+  Rect rect;
+  if (!normalize_rect(x, y, w, h, &rect)) {
+    return;
+  }
+  i32 ty = 0;
+  for (i32 ry = rect.y; ry < rect.y + rect.h; ++ry, ++ty) {
+    i32 tx = 0;
+    i32 rx = rect.x;
+    Color* target = get_pixel_addr(rx, ry);
+    for (; rx < rect.x + rect.w; ++rx, ++tx, ++target) {
+      v2 uv = V2(tx / (f32)rect.w, ty / (f32)rect.h);
+      Color color = texture_get_pixel_wrapped(texture, uv.x * texture->width, uv.y * texture->height);
+      if ((color.value & mask.value) != color.value) {
+        draw_pixel(target, color);
+      }
+    }
+  }
+}
+
+void render_texture_with_mask_and_tint(Texture* texture, i32 x, i32 y, i32 w, i32 h, Color mask, Color tint) {
+  Rect rect;
+  if (!normalize_rect(x, y, w, h, &rect)) {
+    return;
+  }
+  i32 ty = 0;
+  for (i32 ry = rect.y; ry < rect.y + rect.h; ++ry, ++ty) {
+    i32 tx = 0;
+    i32 rx = rect.x;
+    Color* target = get_pixel_addr(rx, ry);
+    for (; rx < rect.x + rect.w; ++rx, ++tx, ++target) {
+      v2 uv = V2(tx / (f32)rect.w, ty / (f32)rect.h);
+      Color color = texture_get_pixel_wrapped(texture, uv.x * texture->width, uv.y * texture->height);
+      if ((color.value & mask.value) != color.value) {
+        f32 inv = 1.0f / UINT8_MAX;
+        color.r = CLAMP((color.r * tint.r) * inv, 0, UINT8_MAX);
+        color.g = CLAMP((color.g * tint.g) * inv, 0, UINT8_MAX);
+        color.b = CLAMP((color.b * tint.b) * inv, 0, UINT8_MAX);
+        draw_pixel(target, color);
+      }
+    }
+  }
+}
+
 void render_axis(v3 origin) {
   render_line_3d(origin, V3_OP(origin, V3(0, 1, 0), +), COLOR_RGB(0, 255, 0));
   render_line_3d(origin, V3_OP(origin, V3(1, 0, 0), +), COLOR_RGB(255, 0, 0));
