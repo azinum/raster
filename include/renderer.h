@@ -113,6 +113,7 @@ void render_point_3d(v3 pos, Color color);
 void render_texture(Texture* texture, i32 x, i32 y, i32 w, i32 h);
 void render_texture_with_mask(Texture* texture, i32 x, i32 y, i32 w, i32 h, Color mask);
 void render_texture_with_mask_and_tint(Texture* texture, i32 x, i32 y, i32 w, i32 h, Color mask, Color tint);
+void render_texture_3d(Texture* texture, v3 pos, i32 w, i32 h, Color mask, Color tint);
 void render_axis(v3 origin);
 void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation, Light light);
 void renderer_set_clear_color(Color color);

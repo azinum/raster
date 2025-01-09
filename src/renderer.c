@@ -606,14 +606,17 @@ void render_texture(Texture* texture, i32 x, i32 y, i32 w, i32 h) {
   if (!normalize_rect(x, y, w, h, &rect)) {
     return;
   }
+  i32 x_max = x + w;
+  i32 y_max = y + h;
   i32 ty = 0;
-  v2 uv = V2(0, 0);
   for (i32 ry = rect.y; ry < rect.y + rect.h; ++ry, ++ty) {
     i32 tx = 0;
     i32 rx = rect.x;
+    i32 ydelta = y_max - ry;
     Color* target = get_pixel_addr(rx, ry);
     for (; rx < rect.x + rect.w; ++rx, ++tx, ++target) {
-      uv = V2(tx / (f32)rect.w, ty / (f32)rect.h);
+      i32 xdelta = x_max - rx;
+      v2 uv = V2(xdelta / (f32)w, ydelta / (f32)h);
       Color color = texture_get_pixel_wrapped(texture, uv.x * texture->width, uv.y * texture->height);
       draw_pixel(target, color);
     }
@@ -625,13 +628,17 @@ void render_texture_with_mask(Texture* texture, i32 x, i32 y, i32 w, i32 h, Colo
   if (!normalize_rect(x, y, w, h, &rect)) {
     return;
   }
+  i32 x_max = x + w;
+  i32 y_max = y + h;
   i32 ty = 0;
   for (i32 ry = rect.y; ry < rect.y + rect.h; ++ry, ++ty) {
     i32 tx = 0;
     i32 rx = rect.x;
+    i32 ydelta = y_max - ry;
     Color* target = get_pixel_addr(rx, ry);
     for (; rx < rect.x + rect.w; ++rx, ++tx, ++target) {
-      v2 uv = V2(tx / (f32)rect.w, ty / (f32)rect.h);
+      i32 xdelta = x_max - rx;
+      v2 uv = V2(xdelta / (f32)w, ydelta / (f32)h);
       Color color = texture_get_pixel_wrapped(texture, uv.x * texture->width, uv.y * texture->height);
       if ((color.value & mask.value) != color.value) {
         draw_pixel(target, color);
@@ -645,13 +652,17 @@ void render_texture_with_mask_and_tint(Texture* texture, i32 x, i32 y, i32 w, i3
   if (!normalize_rect(x, y, w, h, &rect)) {
     return;
   }
+  i32 x_max = x + w;
+  i32 y_max = y + h;
   i32 ty = 0;
   for (i32 ry = rect.y; ry < rect.y + rect.h; ++ry, ++ty) {
     i32 tx = 0;
     i32 rx = rect.x;
+    i32 ydelta = y_max - ry;
     Color* target = get_pixel_addr(rx, ry);
     for (; rx < rect.x + rect.w; ++rx, ++tx, ++target) {
-      v2 uv = V2(tx / (f32)rect.w, ty / (f32)rect.h);
+      i32 xdelta = x_max - rx;
+      v2 uv = V2(xdelta / (f32)w, ydelta / (f32)h);
       Color color = texture_get_pixel_wrapped(texture, uv.x * texture->width, uv.y * texture->height);
       if ((color.value & mask.value) != color.value) {
         f32 inv = 1.0f / UINT8_MAX;
@@ -662,6 +673,28 @@ void render_texture_with_mask_and_tint(Texture* texture, i32 x, i32 y, i32 w, i3
       }
     }
   }
+}
+
+// classic billboard
+void render_texture_3d(Texture* texture, v3 pos, i32 w, i32 h, Color mask, Color tint) {
+  m4 model = translate(pos);
+  m4 mvp = m4_multiply(projection, m4_multiply(view, model));
+  v3 vt = m4_multiply_v3(mvp, V3(0, 0, 0));
+  vt = v3_div_scalar(vt, vt.w);
+  if (trivial_reject(vt.x, vt.y, -1, 1, -1, 1) != 0) {
+    return;
+  }
+  if (vt.w < CAMERA_ZNEAR || vt.w > CAMERA_ZFAR) {
+    return;
+  }
+  vt.x += 1.0f;
+  vt.y += 1.0f;
+  vt.x *= 0.5f * renderer.width;
+  vt.y *= 0.5f * renderer.height;
+  // NOTE: origin at center, therefore:
+  vt.x -= w * 0.5f;
+  vt.y -= h * 0.5f;
+  render_texture_with_mask_and_tint(texture, vt.x, vt.y, w, h, mask, tint);
 }
 
 void render_axis(v3 origin) {
