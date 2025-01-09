@@ -11,19 +11,19 @@
 #include "random.h"
 
 #include "maths.h"
+#include "texture.h"
 #include "config.h"
 #include "camera.h"
 #include "mesh.h"
-#include "texture.h"
 #include "assets.h"
 #include "light.h"
 #include "voxelgi.h"
 #include "renderer.h"
 
 #include "maths.c"
+#include "texture.c"
 #include "camera.c"
 #include "mesh.c"
-#include "texture.c"
 #include "light.c"
 #include "voxelgi.c"
 #include "renderer.c"
@@ -91,13 +91,21 @@ const i32 KEY_X = 39;
 const i32 KEY_Y = 40;
 const i32 KEY_Z = 41;
 
+const i32 EVENT_TYPE_DOWN = 0;
+const i32 EVENT_TYPE_UP = 1;
+
+#define MAX_KEY 255
+bool key_pressed[MAX_KEY] = {0};
+bool key_down[MAX_KEY] = {0};
+
 void init(void);
 void mouse_click(i32 x, i32 y);
-void input_event(i32 code);
+void input_event(i32 code, i32 type);
 void update_and_render(f32 dt);
 u32 display_get_width(void);
 u32 display_get_height(void);
 void* display_get_addr(void);
+void clear_input_events(void);
 
 void init(void) {
   static bool once = true;
@@ -109,8 +117,8 @@ void init(void) {
   renderer_set_render_target(RENDER_TARGET_CLEAR);
   render_fill_rect_gradient(0, 0, display_get_width(), display_get_height(), COLOR_RGB(10, 10, 15), COLOR_RGB(0, 0, 0), V2(0, -1), V2(0, -1));
   renderer_set_render_target(RENDER_TARGET_COLOR);
-  camera_init(V3(0, -2, -2));
-  camera.rotation.pitch = -30;
+  camera_init(V3(0, -1, 0));
+  camera.rotation.pitch = 20;
   camera_update();
   game.light = light_create(V3(0, 0, -4.5), 1.0f, 4.25f);
 }
@@ -119,113 +127,22 @@ void mouse_click(i32 x, i32 y) {
 
 }
 
-void input_event(i32 code) {
-  f32 speed = 0.05f;
-  switch (code) {
-    case KEY_R: {
-      game.timer = 0;
-      x_offset = random_f32() * 1000;
-      y_offset = random_f32() * 1000;
-      init();
+void input_event(i32 code, i32 type) {
+  if (code < 0 || code >= MAX_KEY) {
+    return;
+  }
+  switch (type) {
+    case EVENT_TYPE_DOWN: {
+      key_pressed[code] = true;
+      if (key_down[code]) {
+        key_pressed[code] = false;
+      }
+      key_down[code] = true;
       break;
     }
-    case KEY_SPACE: {
-      game.paused = !game.paused;
-      break;
-    }
-    // forward, backward
-    case KEY_W: {
-      camera.pos = V3_OP(
-        camera.pos,
-        V3(
-          camera.forward.x * -0.1f,
-          0,
-          camera.forward.z * -0.1f
-        ),
-        +
-      );
-      break;
-    }
-    case KEY_S: {
-      camera.pos = V3_OP(
-        camera.pos,
-        V3(
-          camera.forward.x * 0.1f,
-          0,
-          camera.forward.z * 0.1f
-        ),
-        +
-      );
-      break;
-    }
-    // left, right
-    case KEY_A: {
-      camera.rotation.yaw -= 5.0f;
-      break;
-    }
-    case KEY_D: {
-      camera.rotation.yaw += 5.0f;
-      break;
-    }
-    case KEY_Q: {
-      camera.rotation.pitch += 5.0f;
-      break;
-    }
-    case KEY_E: {
-      camera.rotation.pitch -= 5.0f;
-      break;
-    }
-    // up, down
-    case KEY_Z: {
-      camera.pos.y += 0.5f;
-      break;
-    }
-    case KEY_X: {
-      camera.pos.y -= 0.5f;
-      break;
-    }
-    case KEY_1: {
-      game.light.strength -= 0.1f;
-      break;
-    }
-    case KEY_2: {
-      game.light.strength += 0.1f;
-      break;
-    }
-    case KEY_3: {
-      game.light.radius -= 0.1f;
-      break;
-    }
-    case KEY_4: {
-      game.light.radius += 0.1f;
-      break;
-    }
-    case KEY_UP_ARROW: {
-      game.light.pos.z -= 0.5f;
-      break;
-    }
-    case KEY_DOWN_ARROW: {
-      game.light.pos.z += 0.5f;
-      break;
-    }
-    case KEY_LEFT_ARROW: {
-      game.light.pos.x -= 0.5f;
-      break;
-    }
-    case KEY_RIGHT_ARROW: {
-      game.light.pos.x += 0.5f;
-      break;
-    }
-    case KEY_U: {
-      renderer_toggle_dither();
-      break;
-    }
-    case KEY_I: {
-      renderer_toggle_fog();
-      break;
-    }
-    case KEY_O: {
-      renderer_toggle_edge_detection();
+    case EVENT_TYPE_UP: {
+      key_pressed[code] = false;
+      key_down[code] = false;
       break;
     }
     default:
@@ -235,8 +152,99 @@ void input_event(i32 code) {
 
 void update_and_render(f32 dt) {
   i32 fps = (i32)(1.0f / dt);
+  if (key_pressed[KEY_SPACE]) {
+    game.paused = !game.paused;
+  }
   if (game.paused) {
     return;
+  }
+
+  f32 speed = 4.0f;
+  f32 rotation_speed = 150.0f;
+  if (key_pressed[KEY_R]) {
+    game.timer = 0;
+    x_offset = random_f32() * 1000;
+    y_offset = random_f32() * 1000;
+    init();
+  }
+  if (key_down[KEY_W]) {
+    camera.pos = V3_OP(
+      camera.pos,
+      V3(
+        camera.forward.x * speed * dt,
+        0,
+        camera.forward.z * speed * dt
+      ),
+      +
+    );
+  }
+  if (key_down[KEY_S]) {
+    camera.pos = V3_OP(
+      camera.pos,
+      V3(
+        camera.forward.x * -speed * dt,
+        0,
+        camera.forward.z * -speed * dt
+      ),
+      +
+    );
+  }
+  if (key_down[KEY_A]) {
+    camera.rotation.yaw -= rotation_speed * dt;
+  }
+  if (key_down[KEY_D]) {
+    camera.rotation.yaw += rotation_speed * dt;
+  }
+  if (key_down[KEY_Q]) {
+    camera.rotation.pitch += rotation_speed * dt;
+  }
+  if (key_down[KEY_E]) {
+    camera.rotation.pitch -= rotation_speed * dt;
+  }
+  if (key_down[KEY_Z]) {
+    camera.pos.y -= speed * dt;
+  }
+  if (key_down[KEY_X]) {
+    camera.pos.y += speed * dt;
+  }
+  if (key_pressed[KEY_1]) {
+    game.light.strength -= 0.1f;
+  }
+  if (key_pressed[KEY_2]) {
+    game.light.strength += 0.1f;
+  }
+  if (key_pressed[KEY_3]) {
+    game.light.radius -= 0.1f;
+  }
+  if (key_pressed[KEY_4]) {
+    game.light.radius += 0.1f;
+  }
+  if (key_down[KEY_UP_ARROW]) {
+      game.light.pos.z -= speed * dt;
+  }
+  if (key_down[KEY_DOWN_ARROW]) {
+      game.light.pos.z += speed * dt;
+  }
+  if (key_down[KEY_LEFT_ARROW]) {
+      game.light.pos.x -= speed * dt;
+  }
+  if (key_down[KEY_RIGHT_ARROW]) {
+      game.light.pos.x += speed * dt;
+  }
+  if (key_pressed[KEY_6]) {
+    renderer_toggle_dither();
+  }
+  if (key_pressed[KEY_7]) {
+    renderer_toggle_fog();
+  }
+  if (key_pressed[KEY_8]) {
+    renderer_toggle_edge_detection();
+  }
+  if (key_pressed[KEY_9]) {
+    renderer_toggle_render_zbuffer();
+  }
+  if (key_pressed[KEY_0]) {
+    renderer_toggle_render_normal_buffer();
   }
 
   camera_update();
@@ -274,4 +282,8 @@ u32 display_get_height(void) {
 
 void* display_get_addr(void) {
   return &BUFFER[0];
+}
+
+void clear_input_events(void) {
+  memset(key_pressed, 0, sizeof(key_pressed));
 }

@@ -4,12 +4,9 @@
 // #define NO_LIGHTING
 #define UNIFORM_LIGHTING_POSITION
 // #define NO_TEXTURES
-// #define RENDER_ZBUFFER
-// #define RENDER_NORMAL_BUFFER
 #define NO_GI
 
 #define BB_COLOR COLOR_RGBA(255, 255, 255, 150)
-#define EDGE_DETECTION_COLOR COLOR_RGB(0, 0, 0)
 
 #define VGI_X 16
 #define VGI_Y 3
@@ -32,6 +29,8 @@ typedef struct Renderer {
   bool dither;
   bool fog;
   bool edge_detection;
+  bool render_zbuffer;
+  bool render_normal_buffer;
   i32 num_primitives;         // triangles drawn
   i32 num_primitives_culled;  // triangles culled
   f32 dt;
@@ -239,6 +238,8 @@ void renderer_init(Color* color_buffer, Color* clear_buffer, u32 width, u32 heig
   renderer.dither = DITHERING;
   renderer.fog = FOG;
   renderer.edge_detection = EDGE_DETECTION;
+  renderer.render_zbuffer = false;
+  renderer.render_normal_buffer = false;
   renderer.num_primitives = 0;
   renderer.num_primitives_culled = 0;
   renderer.dt = 0;
@@ -572,18 +573,6 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
 
   model = m4_multiply(model, scale(size));
 
-  static const Color palette[] = {
-    COLOR_RGB(230, 100, 100),
-    COLOR_RGB(100, 230, 100),
-    COLOR_RGB(100, 100, 230),
-    COLOR_RGB(230, 100, 230),
-    COLOR_RGB(100, 230, 230),
-    COLOR_RGB(230, 90, 230),
-    COLOR_RGB(60, 150, 230),
-  };
-  random_init(1234);
-  i32 color_index = 0;
-
   m4 mv = m4_multiply(projection, view); // TODO: calculate once per frame
   m4 mvp = m4_multiply(projection, m4_multiply(view, model));
 
@@ -591,23 +580,21 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
 
   // proj * view * model * pos
   for (i32 i = 0; i < mesh->vertex_index_count; i += 3) {
-    Color color = palette[color_index % LENGTH(palette)];
-    color_index += 1;
     // original vertices
-    v3 v[3] = {
+    const v3 v[3] = {
       mesh->vertex[mesh->vertex_index[i + 0]],
       mesh->vertex[mesh->vertex_index[i + 1]],
       mesh->vertex[mesh->vertex_index[i + 2]],
     };
 
-    v2 uv[3] = {
+    const v2 uv[3] = {
       mesh->uv[mesh->uv_index[i + 0]],
       mesh->uv[mesh->uv_index[i + 1]],
       mesh->uv[mesh->uv_index[i + 2]],
     };
 
     // vertex in world position
-    v3 vp[3] = {
+    const v3 vp[3] = {
       m4_multiply_v3(model, v[0]),
       m4_multiply_v3(model, v[1]),
       m4_multiply_v3(model, v[2]),
@@ -630,6 +617,7 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
       m4_multiply_v3(mvp, v[2]),
     };
 
+    // ndc
     vt[0] = v3_div_scalar(vt[0], vt[0].w);
     vt[1] = v3_div_scalar(vt[1], vt[1].w);
     vt[2] = v3_div_scalar(vt[2], vt[2].w);
@@ -639,6 +627,7 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
     v3 line1 = v3_sub(vt[1], vt[0]);
     v3 line2 = v3_sub(vt[2], vt[0]);
     v3 normal = v3_normalize(v3_cross(line1, line2));
+
     // backface culling
     if (v3_dot(normal, v3_sub(camera.forward, pos)) < 0.0f) {
       continue;
@@ -663,6 +652,21 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
       continue;
     }
 
+    // TODO(lucas): clip against view frustum
+    // Sutherland-Hodgman clipping algorithm:
+
+    // a = input[i]
+    // b = input[i + 1]
+    // c = intersect(a, b, edge)
+
+    // if b inside:
+    //   if a not inside:
+    //     output.add(c)
+    //   output.add(b)
+
+    // elif a inside:
+    //   output.add(c)
+
     // project to screen
     vt[0].x += 1.0f;
     vt[1].x += 1.0f;
@@ -680,8 +684,6 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
     if (degenerate(vt[0].x, vt[0].y, vt[1].x, vt[1].y, vt[2].x, vt[2].y)) {
       continue;
     }
-
-    // TODO(lucas): clip against view frustum
 
     light_contrib = 1.0f;
 #ifndef NO_LIGHTING
@@ -719,82 +721,82 @@ void renderer_begin_frame(f32 dt) {
 }
 
 void renderer_end_frame(void) {
-#ifdef RENDER_ZBUFFER
-  for (i32 y = 0; y < renderer.height; ++y) {
-    for (i32 x = 0; x < renderer.width; ++x) {
-      Color* color = get_pixel_addr(x, y);
-      f32 z = *get_zbuffer_addr(x, y);
-      u8 c = UINT8_MAX * (z * z * z * z); //- CLAMP(UINT8_MAX * ABS(f32, (*z * *z * *z)), 0, UINT8_MAX);
-      *color = COLOR_RGB(c, c, c);
-    }
-  }
-#elif defined(RENDER_NORMAL_BUFFER)
-  for (i32 y = 0; y < renderer.height; ++y) {
-    for (i32 x = 0; x < renderer.width; ++x) {
-      Color* color = get_pixel_addr(x, y);
-      Color* normal = get_pixel_addr_from_buffer(renderer.normal_buffer, x, y);
-      *color = *normal;
-    }
-  }
-
-#else
-
-  if (renderer.edge_detection) {
-    f32 normalization_factor = 1.0f / UINT8_MAX;
+  if (renderer.render_zbuffer) {
     for (i32 y = 0; y < renderer.height; ++y) {
       for (i32 x = 0; x < renderer.width; ++x) {
-        Color* target = get_pixel_addr(x, y);
-        Color* sample = get_pixel_addr_from_buffer(renderer.normal_buffer, x, y);
-        f32 f = 0;
-        f32 sample_count = 0;
-        v3 sample_v = V3_OP1(V3(sample->r, sample->g, sample->b), normalization_factor, *);
-        for (i32 sy = -1; sy < 1; ++sy) {
-          for (i32 sx = -1; sx < 1; ++sx, ++sample_count) {
-            if (sx == 0 && sy == 0) {
-              continue;
+        Color* color = get_pixel_addr(x, y);
+        f32 z = *get_zbuffer_addr(x, y);
+        u8 c = UINT8_MAX * (z * z * z * z); //- CLAMP(UINT8_MAX * ABS(f32, (*z * *z * *z)), 0, UINT8_MAX);
+        *color = COLOR_RGB(c, c, c);
+      }
+    }
+  }
+  else if (renderer.render_normal_buffer) {
+    for (i32 y = 0; y < renderer.height; ++y) {
+      for (i32 x = 0; x < renderer.width; ++x) {
+        Color* color = get_pixel_addr(x, y);
+        Color* normal = get_pixel_addr_from_buffer(renderer.normal_buffer, x, y);
+        *color = *normal;
+      }
+    }
+  }
+  else {
+    if (renderer.edge_detection) {
+      f32 normalization_factor = 1.0f / UINT8_MAX;
+      for (i32 y = 0; y < renderer.height; ++y) {
+        for (i32 x = 0; x < renderer.width; ++x) {
+          Color* target = get_pixel_addr(x, y);
+          Color* sample = get_pixel_addr_from_buffer(renderer.normal_buffer, x, y);
+          f32 f = 0;
+          f32 sample_count = 0;
+          v3 sample_v = V3_OP1(V3(sample->r, sample->g, sample->b), normalization_factor, *);
+          for (i32 sy = -1; sy < 1; ++sy) {
+            for (i32 sx = -1; sx < 1; ++sx, ++sample_count) {
+              if (sx == 0 && sy == 0) {
+                continue;
+              }
+              Color* n = get_pixel_addr_bounds_checked(renderer.normal_buffer, x + sx, y + sy);
+              if (!n) {
+                f += 1;
+                continue;
+              }
+              v3 n_v = V3_OP1(V3(n->r, n->g, n->b), normalization_factor, *);
+              f += ABS(f32, v3_dot(n_v, sample_v));
             }
-            Color* n = get_pixel_addr_bounds_checked(renderer.normal_buffer, x + sx, y + sy);
-            if (!n) {
-              f += 1;
-              continue;
-            }
-            v3 n_v = V3_OP1(V3(n->r, n->g, n->b), normalization_factor, *);
-            f += ABS(f32, v3_dot(n_v, sample_v));
           }
+          f *= 1.0f / sample_count;
+          *target = lerp_color(*target, EDGE_DETECTION_COLOR, 1.0f - f);
         }
-        f *= 1.0f / sample_count;
-        *target = lerp_color(*target, EDGE_DETECTION_COLOR, 1.0f - f);
       }
     }
-  }
 
-  if (renderer.fog) {
-    Color fog_color = COLOR_RGB(210, 210, 230);
-    // f(x) = 1 / (ax * bx * cx);
-    f32 falloff_a = 500;
-    f32 falloff_b = 250;
-    f32 falloff_c = 32;
-    for (i32 y = 0; y < renderer.height; ++y) {
-      for (i32 x = 0; x < renderer.width; ++x) {
-        Color* color = get_pixel_addr(x, y);
-        f32 z = 1 - get_zbuffer_value(x, y);
-        f32 z_adjusted = CLAMP(1.0f / (1.0f + (falloff_a * z * falloff_b * z * falloff_c * z)), 0.0f, 1.0f);
-        *color = lerp_color(*color, fog_color, z_adjusted);
+    if (renderer.fog) {
+      Color fog_color = FOG_COLOR; // COLOR_RGB(210, 210, 230);
+      // f(x) = 1 / (ax * bx * cx);
+      f32 falloff_a = 500;
+      f32 falloff_b = 250;
+      f32 falloff_c = 32;
+      for (i32 y = 0; y < renderer.height; ++y) {
+        for (i32 x = 0; x < renderer.width; ++x) {
+          Color* color = get_pixel_addr(x, y);
+          f32 z = 1 - get_zbuffer_value(x, y);
+          f32 z_adjusted = CLAMP(1.0f / (1.0f + (falloff_a * z * falloff_b * z * falloff_c * z)), 0.0f, 1.0f);
+          *color = lerp_color(*color, fog_color, z_adjusted);
+        }
+      }
+    }
+    if (renderer.dither) {
+      for (i32 y = 0; y < renderer.height; ++y) {
+        for (i32 x = 0; x < renderer.width; ++x) {
+          Color* color = get_pixel_addr(x, y);
+          u8 d = (x % 2) * (y % 2);
+          color->r -= (color->r * 0.1f) * d;
+          color->g -= (color->g * 0.1f) * d;
+          color->b -= (color->b * 0.1f) * d;
+        }
       }
     }
   }
-  if (renderer.dither) {
-    for (i32 y = 0; y < renderer.height; ++y) {
-      for (i32 x = 0; x < renderer.width; ++x) {
-        Color* color = get_pixel_addr(x, y);
-        u8 d = (x % 2) * (y % 2);
-        color->r -= (color->r * 0.1f) * d;
-        color->g -= (color->g * 0.1f) * d;
-        color->b -= (color->b * 0.1f) * d;
-      }
-    }
-  }
-#endif
 #ifndef NO_GI
   // voxelgi_render(&renderer.gi);
 #endif
@@ -824,4 +826,13 @@ void renderer_toggle_dither(void) {
 
 void renderer_toggle_edge_detection(void) {
   renderer.edge_detection = !renderer.edge_detection;
+}
+
+void renderer_toggle_render_zbuffer(void) {
+  renderer.render_zbuffer = !renderer.render_zbuffer;
+}
+
+void renderer_toggle_render_normal_buffer(void) {
+  renderer.render_normal_buffer = !renderer.render_normal_buffer;
+
 }

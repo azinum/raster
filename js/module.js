@@ -45,8 +45,11 @@ const KEY_X = 39;
 const KEY_Y = 40;
 const KEY_Z = 41;
 
+const KEY_EVENT_DOWN = 0;
+const KEY_EVENT_UP = 1;
+
 // map from javascript key codes to a standardized key map
-const key_map = [
+const keyMap = [
 	KEY_SPACE,
 	KEY_UNDEFINED,  // page up
 	KEY_UNDEFINED,  // page down
@@ -115,7 +118,7 @@ let options = {
 	displayHeight: 0,
 }
 
-function str_length(memory, ptr) {
+function strLength(memory, ptr) {
 	let length = 0;
 	while (memory[ptr] != 0) {
 		length++;
@@ -124,16 +127,16 @@ function str_length(memory, ptr) {
 	return length;
 }
 
-function str_by_pointer(memory_buffer, ptr) {
-	const memory = new Uint8Array(memory_buffer);
+function strFromPointer(memoryBuffer, ptr) {
+	const memory = new Uint8Array(memoryBuffer);
 	const length = str_length(memory, ptr);
-	const bytes = new Uint8Array(memory_buffer, ptr, length);
+	const bytes = new Uint8Array(memoryBuffer, ptr, length);
 	return new TextDecoder().decode(bytes);
 }
 
-function write(fd, message_ptr, length) {
+function write(fd, messagePtr, length) {
 	const buffer = wasm.instance.exports.memory.buffer;
-	const message = str_by_pointer(buffer, message_ptr);
+	const message = strFromPointer(buffer, messagePtr);
 	console.log(message);
 }
 
@@ -150,7 +153,7 @@ function fullscreen() {
 	}
 }
 
-function update_debug_info(wasm, elem, dt) {
+function updateDebugInfo(wasm, elem, dt) {
 	elem.textContent =
 		wasm.instance.exports.renderer_get_num_primitives() + "/" + wasm.instance.exports.renderer_get_num_primitives_culled() + " primitives | " +
 		(dt * 1000).toFixed(2) + " ms | " + wasm.instance.exports.display_get_width() + "x" + wasm.instance.exports.display_get_height();
@@ -194,25 +197,48 @@ function update_debug_info(wasm, elem, dt) {
 			let yFactor = options.rasterHeight / options.displayHeight;
 			instance.exports.mouse_click(e.offsetX * xFactor, e.offsetY * yFactor);
 		});
+
+		let events = [];
+
 		document.addEventListener("keydown", e => {
+			if (e.repeat) {
+				return;
+			}
 			if (e.which >= 32 && e.which <= 90) {
-				instance.exports.input_event(key_map[e.which - 32]);
-				if (key_map[e.which - 32] == KEY_F) {
+				events.push({ code: keyMap[e.which - 32], type: KEY_EVENT_DOWN });
+				if (keyMap[e.which - 32] == KEY_F) {
 					fullscreen();
 				}
 			}
 		});
+		document.addEventListener("keyup", e => {
+			if (e.repeat) {
+				return;
+			}
+			if (e.which >= 32 && e.which <= 90) {
+				events.push({ code: keyMap[e.which - 32], type: KEY_EVENT_UP });
+			}
+		});
 
-		const debug_text_elem = document.getElementById("debug-info");
+		const debugTextElem = document.getElementById("debug-info");
 
 		let startTime = 0;
 		let ticks = 0;
+		function processInputEvents() {
+			for (let i = 0; i < events.length; ++i) {
+				let e = events[i];
+				instance.exports.input_event(e.code, e.type);
+			}
+			events.length = 0;
+		}
 		function frame_step(timestamp) {
 			if (startTime === undefined) {
 				startTime = timestamp;
 			}
 			const dt = (timestamp - startTime) * 0.001;
 			startTime = timestamp;
+			instance.exports.clear_input_events();
+			processInputEvents();
 			instance.exports.update_and_render(dt);
 			const frame = new ImageData(
 				new Uint8ClampedArray(
@@ -227,7 +253,7 @@ function update_debug_info(wasm, elem, dt) {
 			window.requestAnimationFrame(frame_step);
 			ticks += 1;
 			if (!(ticks % 2)) {
-				update_debug_info(wasm, debug_text_elem, dt);
+				updateDebugInfo(wasm, debugTextElem, dt);
 			}
 		}
 		window.requestAnimationFrame(frame_step);
