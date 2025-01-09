@@ -80,6 +80,9 @@ typedef union m4 {
   extern f32 tanf(f32 n);
   extern f32 expf(f32 n);
   extern f32 logf(f32 n);
+  extern f32 floorf(f32 n);
+  extern f32 ceilf(f32 n);
+  extern f32 roundf(f32 n);
 #else
   #include <math.h>
 #endif
@@ -114,6 +117,7 @@ extern m4 scale(v3 a);
 extern m4 orthographic(f32 left, f32 right, f32 bottom, f32 top, f32 z_near, f32 z_far);
 extern m4 perspective(f32 fov, f32 aspect, f32 z_near, f32 z_far);
 extern m4 look_at(v3 eye, v3 center, v3 up);
+
 #if USE_SSE
 
 extern m4 transpose(m4 a);

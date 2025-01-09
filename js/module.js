@@ -129,7 +129,7 @@ function strLength(memory, ptr) {
 
 function strFromPointer(memoryBuffer, ptr) {
 	const memory = new Uint8Array(memoryBuffer);
-	const length = str_length(memory, ptr);
+	const length = strLength(memory, ptr);
 	const bytes = new Uint8Array(memoryBuffer, ptr, length);
 	return new TextDecoder().decode(bytes);
 }
@@ -148,7 +148,7 @@ function fullscreen() {
 	else if (canvas.webkitRequestFullScreen) {
 		canvas.webkitRequestFullScreen();
 	}
-	else if (canvas.mozRequestFullScreen){
+	else if (canvas.mozRequestFullScreen) {
 		canvas.mozRequestFullScreen();
 	}
 }
@@ -169,6 +169,10 @@ function updateDebugInfo(wasm, elem, dt) {
 			tanf: Math.tan,
 			expf: Math.exp,
 			logf: Math.log,
+			ceilf: Math.ceil,
+			floorf: Math.floor,
+			roundf: Math.round,
+			time: Date.now,
 		}
 	})
 	.then(obj => {

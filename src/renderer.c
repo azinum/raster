@@ -2,18 +2,13 @@
 
 // #define DRAW_BB
 // #define NO_LIGHTING
-#define UNIFORM_LIGHTING_POSITION
+// #define UNIFORM_LIGHTING_POSITION
 // #define NO_TEXTURES
-#define NO_GI
+#define VOXELGI
 
 #define BB_COLOR COLOR_RGBA(255, 255, 255, 150)
 
-#define VGI_X 16
-#define VGI_Y 3
-#define VGI_Z 12
-#define VGI_VOXEL_COUNT (VGI_X * VGI_Y * VGI_Z)
-
-static Vsample vgi_samples[VGI_VOXEL_COUNT] = {0};
+static Vsample voxelgi_samples[VOXELGI_VOXEL_COUNT] = {0};
 
 typedef struct Renderer {
   Color* target;
@@ -34,7 +29,7 @@ typedef struct Renderer {
   i32 num_primitives;         // triangles drawn
   i32 num_primitives_culled;  // triangles culled
   f32 dt;
-#ifndef NO_GI
+#ifdef VOXELGI
   Voxelgi gi;
 #endif
 } Renderer;
@@ -251,8 +246,8 @@ void renderer_init(Color* color_buffer, Color* clear_buffer, u32 width, u32 heig
     renderer.clear_normal_buffer[i] = COLOR_RGB(0, 0, 0);
   }
   memcpy(&renderer.normal_buffer[0], &renderer.clear_normal_buffer[0], sizeof(Color) * width * height);
-#ifndef NO_GI
-  renderer.gi = voxelgi_init(VOXELGI_POS, VGI_X, VGI_Y, VGI_Z, vgi_samples);
+#ifdef VOXELGI
+  renderer.gi = voxelgi_init(VOXELGI_POS, VOXELGI_X, VOXELGI_Y, VOXELGI_Z, voxelgi_samples);
 #endif
 }
 
@@ -385,6 +380,33 @@ void render_line(i32 x1, i32 y1, i32 x2, i32 y2, Color color) {
       }
     }
   }
+}
+
+void render_line_3d(v3 p1, v3 p2, Color color) {
+  m4 model = translate(V3(0, 0, 0));
+  m4 mvp = m4_multiply(projection, m4_multiply(view, model));
+  v3 vt[2] = {
+    m4_multiply_v3(mvp, p1),
+    m4_multiply_v3(mvp, p2),
+  };
+  vt[0] = v3_div_scalar(vt[0], vt[0].w);
+  vt[1] = v3_div_scalar(vt[1], vt[1].w);
+  if (trivial_reject(vt[0].x, vt[0].y, -1, 1, -1, 1) != 0 && trivial_reject(vt[1].x, vt[1].y, -1, 1, -1, 1) != 0) {
+    return;
+  }
+  if (vt[0].w < CAMERA_ZNEAR && vt[1].w < CAMERA_ZNEAR) {
+    return;
+  }
+  vt[0].x += 1.0f;
+  vt[0].y += 1.0f;
+  vt[0].x *= 0.5f * renderer.width;
+  vt[0].y *= 0.5f * renderer.height;
+
+  vt[1].x += 1.0f;
+  vt[1].y += 1.0f;
+  vt[1].x *= 0.5f * renderer.width;
+  vt[1].y *= 0.5f * renderer.height;
+  render_line(vt[0].x, vt[0].y, vt[1].x, vt[1].y, color);
 }
 
 void render_fill_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Color color) {
@@ -541,6 +563,24 @@ void render_fill_circle(i32 px, i32 py, i32 r, Color color) {
   }
 }
 
+void render_fill_circle_3d(v3 pos, f32 r, Color color) {
+  m4 model = translate(pos);
+  m4 mvp = m4_multiply(projection, m4_multiply(view, model));
+  v3 vt = m4_multiply_v3(mvp, V3(0, 0, 0));
+  vt = v3_div_scalar(vt, vt.w);
+  if (trivial_reject(vt.x, vt.y, -1, 1, -1, 1) != 0) {
+    return;
+  }
+  if (vt.w < CAMERA_ZNEAR) {
+    return;
+  }
+  vt.x += 1.0f;
+  vt.y += 1.0f;
+  vt.x *= 0.5f * renderer.width;
+  vt.y *= 0.5f * renderer.height;
+  render_fill_circle(vt.x, vt.y, r, color);
+}
+
 void render_point_3d(v3 pos, Color color) {
   m4 model = translate(pos);
   m4 mvp = m4_multiply(projection, m4_multiply(view, model));
@@ -629,7 +669,7 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
     v3 normal = v3_normalize(v3_cross(line1, line2));
 
     // backface culling
-    if (v3_dot(normal, v3_sub(camera.forward, pos)) < 0.0f) {
+    if (v3_dot(normal, v3_sub(camera.forward, position)) < 0.0f) {
       continue;
     }
 
@@ -693,10 +733,10 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
     f32 light_attenuation_final = CLAMP(1.0f / (1.0f + (light_distance)/(light.radius*light.radius*light.radius)), 0, 1);
     light_contrib = v3_dot(world_normal, light_normalized) * light_attenuation_final * light.strength;
     light_contrib = CLAMP(light_contrib, light.ambience, 1);
-#ifndef NO_GI
-    voxelgi_update_voxel(&renderer.gi, position, world_normal, light_contrib);
+#ifdef VOXELGI
+    voxelgi_update_voxel(&renderer.gi, position, world_normal, light_contrib, renderer.dt);
     f32 gi_contrib = voxelgi_get_voxel_weight(&renderer.gi, pos);
-    light_contrib = CLAMP(light_contrib - 1 / (1.0f + (20*gi_contrib * 10*gi_contrib)), 0, 1);
+    light_contrib *= gi_contrib;
 #endif
 #endif
 
@@ -715,7 +755,7 @@ void renderer_begin_frame(f32 dt) {
   renderer.num_primitives = 0;
   renderer.num_primitives_culled = 0;
   renderer.dt = dt;
-#ifndef NO_GI
+#ifdef VOXELGI
   voxelgi_update(&renderer.gi, dt);
 #endif
 }
@@ -797,8 +837,8 @@ void renderer_end_frame(void) {
       }
     }
   }
-#ifndef NO_GI
-  // voxelgi_render(&renderer.gi);
+#ifdef VOXELGI
+  voxelgi_render(&renderer.gi);
 #endif
 }
 
@@ -834,5 +874,8 @@ void renderer_toggle_render_zbuffer(void) {
 
 void renderer_toggle_render_normal_buffer(void) {
   renderer.render_normal_buffer = !renderer.render_normal_buffer;
+}
 
+void renderer_toggle_render_voxels(void) {
+  VOXELGI_RENDER_VOXELS = !VOXELGI_RENDER_VOXELS;
 }

@@ -91,6 +91,8 @@ const i32 KEY_X = 39;
 const i32 KEY_Y = 40;
 const i32 KEY_Z = 41;
 
+extern i32 time();
+
 const i32 EVENT_TYPE_DOWN = 0;
 const i32 EVENT_TYPE_UP = 1;
 
@@ -108,14 +110,10 @@ void* display_get_addr(void);
 void clear_input_events(void);
 
 void init(void) {
-  static bool once = true;
-  if (once) {
-    random_init(1234);
-    once = false;
-  }
+  random_init(time(0));
   renderer_init((Color*)display_get_addr(), (Color*)&CLEAR_BUFFER[0], display_get_width(), display_get_height());
   renderer_set_render_target(RENDER_TARGET_CLEAR);
-  render_fill_rect_gradient(0, 0, display_get_width(), display_get_height(), COLOR_RGB(10, 10, 15), COLOR_RGB(0, 0, 0), V2(0, -1), V2(0, -1));
+  render_fill_rect_gradient(0, 0, display_get_width(), display_get_height(), COLOR_RGB(5, 5, 5), COLOR_RGB(0, 0, 0), V2(0, -1), V2(0, -1));
   renderer_set_render_target(RENDER_TARGET_COLOR);
   camera_init(V3(0, -1, 0));
   camera.rotation.pitch = 20;
@@ -160,6 +158,7 @@ void update_and_render(f32 dt) {
   }
 
   f32 speed = 4.0f;
+  f32 light_adjust_speed = 2.0f;
   f32 rotation_speed = 150.0f;
   if (key_pressed[KEY_R]) {
     game.timer = 0;
@@ -207,29 +206,38 @@ void update_and_render(f32 dt) {
   if (key_down[KEY_X]) {
     camera.pos.y += speed * dt;
   }
-  if (key_pressed[KEY_1]) {
-    game.light.strength -= 0.1f;
+  if (key_down[KEY_1]) {
+    game.light.strength = CLAMP(game.light.strength - light_adjust_speed * dt, 0, 10);
   }
-  if (key_pressed[KEY_2]) {
-    game.light.strength += 0.1f;
+  if (key_down[KEY_2]) {
+    game.light.strength = CLAMP(game.light.strength + light_adjust_speed * dt, 0, 10);
   }
-  if (key_pressed[KEY_3]) {
-    game.light.radius -= 0.1f;
+  if (key_down[KEY_3]) {
+    game.light.radius = CLAMP(game.light.radius - light_adjust_speed * dt, 0.1f, 100);
   }
-  if (key_pressed[KEY_4]) {
-    game.light.radius += 0.1f;
+  if (key_down[KEY_4]) {
+    game.light.radius = CLAMP(game.light.radius + light_adjust_speed * dt, 0.1f, 100);
   }
   if (key_down[KEY_UP_ARROW]) {
-      game.light.pos.z -= speed * dt;
+    game.light.pos.z -= speed * dt;
   }
   if (key_down[KEY_DOWN_ARROW]) {
-      game.light.pos.z += speed * dt;
+    game.light.pos.z += speed * dt;
   }
   if (key_down[KEY_LEFT_ARROW]) {
-      game.light.pos.x -= speed * dt;
+    game.light.pos.x -= speed * dt;
   }
   if (key_down[KEY_RIGHT_ARROW]) {
-      game.light.pos.x += speed * dt;
+    game.light.pos.x += speed * dt;
+  }
+  if (key_down[KEY_J]) {
+    game.light.pos.y += speed * dt;
+  }
+  if (key_down[KEY_K]) {
+    game.light.pos.y -= speed * dt;
+  }
+  if (key_pressed[KEY_5]) {
+    renderer_toggle_render_voxels();
   }
   if (key_pressed[KEY_6]) {
     renderer_toggle_dither();
@@ -256,6 +264,7 @@ void update_and_render(f32 dt) {
   for (f32 x = -7*resize; x < 9*resize; x += scale) {
     for (f32 z = -12*resize; z < 0; z += scale) {
       render_mesh(&plane, &tile_23, V3(x, 1, z), V3(scale, scale, scale), V3(0, 0, 0), game.light);
+      render_mesh(&plane, &tile_23, V3(x, -1, z), V3(scale, scale, scale), V3(180, 0, 0), game.light);
     }
   }
   {
