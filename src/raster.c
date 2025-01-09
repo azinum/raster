@@ -149,6 +149,7 @@ void input_event(i32 code, i32 type) {
 }
 
 void update_and_render(f32 dt) {
+  dt = CLAMP(dt, DT_MIN, DT_MAX);
   i32 fps = (i32)(1.0f / dt);
   if (key_pressed[KEY_SPACE]) {
     game.paused = !game.paused;
