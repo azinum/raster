@@ -12,6 +12,7 @@
 
 #include "maths.h"
 #include "texture.h"
+#include "font.h"
 #include "config.h"
 #include "camera.h"
 #include "mesh.h"
@@ -22,6 +23,7 @@
 
 #include "maths.c"
 #include "texture.c"
+#include "font.c"
 #include "camera.c"
 #include "mesh.c"
 #include "light.c"
@@ -287,9 +289,15 @@ void update_and_render(f32 dt) {
   }
 #endif
 
-  // render_mesh(&plane, &tile_23, V3(0, 0, 0), V3(1, 1, 1), V3(180, 0, 0), game.light);
-
   renderer_post_process();
+  {
+    static char text[256] = {0};
+    static size_t length = 0;
+    if ((game.tick % 4) == 0) {
+      length = snprintf(text, sizeof(text), "%.3g ms\nlight (%.2g, %.2g, %.2g)\ncamera (%.2g, %.2g, %.2g)", dt, EXPAND_V3(game.light.pos), EXPAND_V3(camera.pos));
+    }
+    render_text(text, length, 2, 2, 1, COLOR_RGB(130, 100, 255));
+  }
   render_axis(V3(0, 0, 0));
   render_texture_3d(&sun_icon, game.light.pos, 24, 24, COLOR_RGB(255, 0, 255), COLOR_RGB(255, 255, 100));
   renderer_end_frame();

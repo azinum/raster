@@ -103,6 +103,7 @@ void render_texture_with_mask_and_tint(Texture* texture, i32 x, i32 y, i32 w, i3
 void render_texture_3d(Texture* texture, v3 pos, i32 w, i32 h, Color mask, Color tint);
 void render_axis(v3 origin);
 void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation, Light light);
+void render_text(const char* text, size_t length, i32 x, i32 y, f32 size, Color tint);
 void renderer_set_clear_color(Color color);
 void renderer_begin_frame(f32 dt);
 void renderer_post_process(void);

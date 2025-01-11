@@ -912,6 +912,42 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
   }
 }
 
+// TODO: bb
+void render_text(const char* text, size_t length, i32 x, i32 y, f32 size, Color tint) {
+  Font font = default_font;
+  i32 x_spacing = 1 + font.width * size;
+  i32 y_spacing = 1 + font.height * size;
+  i32 x_offset = x;
+  i32 y_offset = y;
+  Color mask = COLOR_RGB(255, 0, 255);
+
+  for (i32 i = 0; i < length; ++i) {
+    char code = text[i];
+    if (code == '\n') {
+      x_offset = x;
+      y_offset += y_spacing;
+      continue;
+    }
+    if (code == ' ') {
+      x_offset += font.width;
+      continue;
+    }
+    for (i32 gy = 0; gy < font.height; ++gy) {
+      for (i32 gx = 0; gx < font.width; ++gx) {
+        Color color = font_get_color(&font, gx, gy, code);
+        if (color.value != mask.value) {
+          f32 inv = 1.0f / UINT8_MAX;
+          color.r = CLAMP((color.r * tint.r) * inv, 0, UINT8_MAX);
+          color.g = CLAMP((color.g * tint.g) * inv, 0, UINT8_MAX);
+          color.b = CLAMP((color.b * tint.b) * inv, 0, UINT8_MAX);
+          render_fill_rect(x_offset + gx * size, y_offset + gy * size, size, size, color);
+        }
+      }
+    }
+    x_offset += x_spacing;
+  }
+}
+
 void renderer_set_clear_color(Color color) {
   for (i32 i = 0; i < renderer.width * renderer.height; ++i) {
     renderer.clear_buffer[i] = color;

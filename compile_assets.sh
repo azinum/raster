@@ -18,10 +18,10 @@ for PNG_PATH in data/texture/*.png; do
 	pngtoc ${PNG_PATH} ${NAME} >> ${FILE}
 done
 
-# for TTF_PATH in assets/font/*.ttf; do
-# 	NAME=${TTF_PATH%.ttf}
-# 	NAME=${NAME##*/}
-# 	./font2c ${TTF_PATH} -n ${NAME} >> ${FILE}
-# done
+for TTF_PATH in data/font/*.ttf; do
+	NAME=${TTF_PATH%.ttf}
+	NAME=${NAME##*/}
+	font2c ${TTF_PATH} -n ${NAME} >> ${FILE}
+done
 
 echo "#endif // _ASSETS_H" >> ${FILE}
