@@ -43,7 +43,7 @@ inline Vsample* voxelgi_get_sample_interpolated_within_bounds(Voxelgi* gi, v3 po
       v3 delta = v3_normalize(V3_OP(pos, pos_rounded, -));
       f32 f = CLAMP(ABS(f32, v3_dot(delta, pos)), 0, 1);
       out->normal = v3_lerp(nearest->normal, next->normal, f);
-      out->weight = lerp(nearest->weight, next->weight, f);
+      out->weight = f32_lerp(nearest->weight, next->weight, f);
       return nearest;
     }
     *out = *nearest;
@@ -142,22 +142,14 @@ void voxelgi_update(Voxelgi* gi, f32 dt) {
               contrib *= CLAMP(nc_contrib, 0, 1);
               fsum += contrib;
               f32 f = contrib;
-              n->weight = lerp(n->weight, sample->weight, f * gi->contrib_speed * dt);
-              n->normal = V3(
-                lerp(n->normal.x, sample->normal.x, f * 2 * gi->contrib_speed * dt),
-                lerp(n->normal.y, sample->normal.y, f * 2 * gi->contrib_speed * dt),
-                lerp(n->normal.z, sample->normal.z, f * 2 * gi->contrib_speed * dt)
-              );
+              n->weight = f32_lerp(n->weight, sample->weight, f * gi->contrib_speed * dt);
+              n->normal = v3_lerp(n->normal, sample->normal, f * 2 * gi->contrib_speed * dt);
             }
           }
         }
         fsum /= iterations;
-        sample->weight = lerp(sample->weight, 0, fsum * gi->decay_speed * dt);
-        sample->normal = V3(
-          lerp(sample->normal.x, 0, fsum * gi->decay_speed * dt),
-          lerp(sample->normal.y, 0, fsum * gi->decay_speed * dt),
-          lerp(sample->normal.z, 0, fsum * gi->decay_speed * dt)
-        );
+        sample->weight = f32_lerp(sample->weight, 0, fsum * gi->decay_speed * dt);
+        sample->normal = v3_lerp(sample->normal, V3(0, 0, 0), fsum * gi->decay_speed * dt);
       }
       gi->x = 0;
     }
@@ -184,12 +176,8 @@ void voxelgi_update_voxel(Voxelgi* gi, v3 pos, v3 normal, f32 weight, f32 dt) {
     sample->normal = normal;
     sample->weight = weight;
 #else
-    sample->normal = V3(
-      lerp(normal.x, sample->normal.x, weight),
-      lerp(normal.y, sample->normal.y, weight),
-      lerp(normal.z, sample->normal.z, weight)
-    );
-    sample->weight = lerp(sample->weight, weight, gi->contrib_speed * dt);
+    sample->normal = v3_lerp(normal, sample->normal, weight);
+    sample->weight = f32_lerp(sample->weight, weight, gi->contrib_speed * dt);
 #endif
   }
 }

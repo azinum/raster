@@ -32,6 +32,7 @@ typedef struct Game {
   Light light;
   size_t tick;
   f32 timer;
+  f32 time_scale;
   bool paused;
 } Game;
 
@@ -39,6 +40,7 @@ Game game = {
   .light = {0},
   .tick = 0,
   .timer = 0,
+  .time_scale = 1.0f,
   .paused = false,
 };
 
@@ -115,10 +117,10 @@ void init(void) {
   renderer_set_render_target(RENDER_TARGET_CLEAR);
   render_fill_rect_gradient(0, 0, display_get_width(), display_get_height(), COLOR_RGB(5, 5, 5), COLOR_RGB(0, 0, 0), V2(0, -1), V2(0, -1));
   renderer_set_render_target(RENDER_TARGET_COLOR);
-  camera_init(V3(0, 1, 0));
+  camera_init(V3(0, 1, 3));
   camera.rotation.pitch = -20;
   camera_update();
-  game.light = light_create(V3(0, -0.8f, -4.5), 2.0f, 2.5f);
+  game.light = light_create(V3(0, 0.5f, 0), 2.0f, 2.5f);
 }
 
 void mouse_click(i32 x, i32 y) {
@@ -158,9 +160,9 @@ void update_and_render(f32 dt) {
     return;
   }
 
-  f32 speed = 4.0f;
-  f32 light_adjust_speed = 2.0f;
-  f32 rotation_speed = 150.0f;
+  f32 speed = 4.0f * game.time_scale;
+  f32 light_adjust_speed = 2.0f ;
+  f32 rotation_speed = 150.0f * game.time_scale;
   if (key_pressed[KEY_R]) {
     game.timer = 0;
     x_offset = random_f32() * 1000;
@@ -255,11 +257,18 @@ void update_and_render(f32 dt) {
   if (key_pressed[KEY_0]) {
     renderer_toggle_render_normal_buffer();
   }
+  if (key_pressed[KEY_N]) {
+    game.time_scale = CLAMP(game.time_scale - 0.05f, 0, 1);
+  }
+  if (key_pressed[KEY_M]) {
+    game.time_scale = CLAMP(game.time_scale + 0.05f, 0, 1);
+  }
 
   camera_update();
 
   renderer_begin_frame(dt);
   renderer_clear();
+#if 1
   f32 scale = 1.0f;
   f32 resize = 1.0f / scale;
   for (f32 x = -7*resize; x < 9*resize; x += scale) {
@@ -274,14 +283,18 @@ void update_and_render(f32 dt) {
   }
   {
     f32 size = 1;
-    render_mesh(&cube, &brick_22, V3(2, sinf(game.timer * 0.8f) - 1, -5), V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40), game.light);
+    render_mesh(&cube, &brick_22, V3(2, sinf(game.timer * 0.8f) - 1, -5), V3(size, size, size), V3(0, 0, 0), game.light);
   }
+#endif
 
+  // render_mesh(&plane, &tile_23, V3(0, 0, 0), V3(1, 1, 1), V3(180, 0, 0), game.light);
+
+  renderer_post_process();
   render_axis(V3(0, 0, 0));
   render_texture_3d(&sun_icon, game.light.pos, 24, 24, COLOR_RGB(255, 0, 255), COLOR_RGB(255, 255, 100));
   renderer_end_frame();
   game.tick += 1;
-  game.timer += dt;
+  game.timer += dt * game.time_scale;
 }
 
 u32 display_get_width(void) {

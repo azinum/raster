@@ -81,19 +81,6 @@ typedef struct Triangle {
   v3 c;
 } Triangle;
 
-typedef struct Edge {
-  u32 a;
-  u32 b;
-  f32 interpolation;
-} Edge;
-
-// worst case for triangle clipping is 6 edges
-#define MAX_EDGE 6
-typedef struct Edge_map {
-  Edge edges[MAX_EDGE];
-  u32 edge_count;
-} Edge_map;
-
 #define RECT(X, Y, W, H) (Rect) { .x = X, .y = Y, .w = W, .h = H, }
 
 void renderer_init(Color* color_buffer, Color* clear_buffer, u32 width, u32 height);
@@ -118,6 +105,7 @@ void render_axis(v3 origin);
 void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation, Light light);
 void renderer_set_clear_color(Color color);
 void renderer_begin_frame(f32 dt);
+void renderer_post_process(void);
 void renderer_end_frame(void);
 void renderer_clear(void);
 i32 renderer_get_num_primitives(void);

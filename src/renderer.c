@@ -45,7 +45,7 @@ static f32 get_zbuffer_value(i32 x, i32 y);
 static f32 get_zbuffer_value_bounds_checked(i32 x, i32 y, f32 out_of_bounds_value);
 static bool normalize_rect(i32 x, i32 y, i32 w, i32 h, Rect* rect);
 static bool triangle_bb(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Rect* rect);
-static Color lerp_color(Color a, Color b, f32 t);
+static Color color_lerp(Color a, Color b, f32 t);
 static bool bounds_check(Rect rect, i32 x, i32 y);
 static bool fb_bounds_check(i32 x, i32 y);
 static bool barycentric(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, i32 x, i32 y, i32* u1, i32* u2, i32* det);
@@ -53,6 +53,7 @@ static bool v3_barycentric(v3 a, v3 b, v3 c, v3 p, f32* u1, f32* u2, f32* det);
 static v2 v2_cartesian(v2 a, v2 b, v2 c, f32 w1, f32 w2, f32 w3);
 static bool degenerate(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3);
 static u8 trivial_reject(f32 x, f32 y, const f32 x_min, const f32 x_max, const f32 y_min, const f32 y_max);
+static i32 clip_vertices(Vertex* input, Vertex* output, i32 count, v3 plane_pos, v3 plane_normal);
 
 inline Color* get_pixel_addr(i32 x, i32 y) {
 #ifndef DEBUG_OUT_OF_BOUNDS
@@ -151,12 +152,12 @@ bool triangle_bb(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Rect* rect) {
   return (max_x - min_x) > 0 && (max_y - min_y) > 0;
 }
 
-Color lerp_color(Color a, Color b, f32 t) {
+Color color_lerp(Color a, Color b, f32 t) {
   return (Color) {
-    .r = lerp(a.r, b.r, t),
-    .g = lerp(a.g, b.g, t),
-    .b = lerp(a.b, b.b, t),
-    .a = lerp(a.a, b.a, t)
+    .r = f32_lerp(a.r, b.r, t),
+    .g = f32_lerp(a.g, b.g, t),
+    .b = f32_lerp(a.b, b.b, t),
+    .a = f32_lerp(a.a, b.a, t)
   };
 }
 
@@ -221,6 +222,36 @@ inline u8 trivial_reject(f32 x, f32 y, const f32 x_min, const f32 x_max, const f
     (y < y_min) << 1 |
     (x > x_max) << 2 |
     (x < x_min) << 4;
+}
+
+// TODO(lucas): interpolate uvs
+i32 clip_vertices(Vertex* input, Vertex* output, i32 count, v3 plane_pos, v3 plane_normal) {
+  i32 output_count = 0;
+
+  v3 plane = plane_from_pos_and_normal(plane_pos, plane_normal);
+
+  for (i32 i = 0; i < count; ++i) {
+    Vertex a = input[i];
+    Vertex b = input[(i + 1) % count];
+    Vertex c;
+    f32 t = 0;
+    line_plane_intersection(plane_pos, plane_normal, a.p, b.p, &t);
+
+    c.p = v3_lerp(a.p, b.p, t);
+    c.uv = v2_lerp(a.uv, b.uv, t);
+
+    if (!point_behind_plane(b.p, plane)) { // b inside
+      if (point_behind_plane(a.p, plane)) { // a outside
+        output[output_count++] = c;
+      }
+      output[output_count++] = b;
+    }
+    else if (!point_behind_plane(a.p, plane)) { // a inside
+      output[output_count++] = c;
+    }
+  }
+
+  return output_count;
 }
 
 void renderer_init(Color* color_buffer, Color* clear_buffer, u32 width, u32 height) {
@@ -319,10 +350,10 @@ void render_fill_rect_gradient(i32 x, i32 y, i32 w, i32 h, Color color_start, Co
       f32 a = -v2_dot(uv, gradient_start);
       f32 b = -v2_dot(uv, gradient_end);
       if (a < b) {
-        draw_pixel(target, lerp_color(color_start, color_end, a));
+        draw_pixel(target, color_lerp(color_start, color_end, a));
       }
       else {
-        draw_pixel(target, lerp_color(color_start, color_end, b));
+        draw_pixel(target, color_lerp(color_start, color_end, b));
       }
     }
   }
@@ -389,12 +420,12 @@ void render_line_3d(v3 p1, v3 p2, Color color) {
     m4_multiply_v3(mvp, p1),
     m4_multiply_v3(mvp, p2),
   };
+  if (vt[0].w < CAMERA_ZNEAR && vt[1].w < CAMERA_ZNEAR) {
+    return;
+  }
   vt[0] = v3_div_scalar(vt[0], vt[0].w);
   vt[1] = v3_div_scalar(vt[1], vt[1].w);
   if (trivial_reject(vt[0].x, vt[0].y, -1, 1, -1, 1) != 0 && trivial_reject(vt[1].x, vt[1].y, -1, 1, -1, 1) != 0) {
-    return;
-  }
-  if (vt[0].w < CAMERA_ZNEAR && vt[1].w < CAMERA_ZNEAR) {
     return;
   }
   vt[0].x += 1.0f;
@@ -717,6 +748,11 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
 
   f32 light_contrib = 0.0f;
 
+  #define MAX_VERTEX_OUTPUT 9
+  Vertex input[MAX_VERTEX_OUTPUT] = {0};
+  Vertex output[MAX_VERTEX_OUTPUT] = {0};
+  Vertex* clip_buffer[2] = { input, output };
+
   // proj * view * model * pos
   for (i32 i = 0; i < mesh->vertex_index_count; i += 3) {
     // original vertices
@@ -749,6 +785,11 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
     v3 wline2 = v3_sub(vp[2], vp[0]);
     v3 world_normal = v3_normalize(v3_cross(wline1, wline2));
 
+    // backface culling
+    if (v3_dot(world_normal, V3_OP(camera.pos, vp[0], -)) < 0.0f) {
+      continue;
+    }
+
     // transformed vertices
     v3 vt[3] = {
       m4_multiply_v3(mvp, v[0]),
@@ -756,73 +797,76 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
       m4_multiply_v3(mvp, v[2]),
     };
 
+    if (vt[0].w < EPS || vt[1].w < EPS || vt[2].w < EPS) {
+      continue;
+    }
     // ndc
     vt[0] = v3_div_scalar(vt[0], vt[0].w);
     vt[1] = v3_div_scalar(vt[1], vt[1].w);
     vt[2] = v3_div_scalar(vt[2], vt[2].w);
 
-    float depth_avg = (vt[0].w + vt[1].w + vt[2].w) / 3.0f;
-
     v3 line1 = v3_sub(vt[1], vt[0]);
     v3 line2 = v3_sub(vt[2], vt[0]);
-    v3 normal = v3_normalize(v3_cross(line1, line2));
+    v3 view_normal = v3_normalize(v3_cross(line1, line2));
 
-    // backface culling
-    if (v3_dot(normal, v3_sub(camera.forward, position)) < 0.0f) {
-      continue;
-    }
+    const f32 x_min = -1.0f;
+    const f32 x_max =  1.0f;
+    const f32 y_min = -1.0f;
+    const f32 y_max =  1.0f;
 
-    if (depth_avg <= CAMERA_ZNEAR || depth_avg >= CAMERA_ZFAR) {
-      continue;
-    }
-
-    // viewspace-transformed vertices used for clipping
-    v3 vt_copy[3] = {
-      vt[0],
-      vt[1],
-      vt[2],
-    };
-
-    const f32 x_min = -1.05f;
-    const f32 x_max =  1.05f;
-    const f32 y_min = -1.05f;
-    const f32 y_max =  1.05f;
+    // TODO: find a better use of this because it can reject things that are still in view
     if (trivial_reject(vt[0].x, vt[0].y, x_min, x_max, y_min, y_max) != 0 && trivial_reject(vt[1].x, vt[1].y, x_min, x_max, y_min, y_max) != 0 && trivial_reject(vt[2].x, vt[2].y, x_min, x_max, y_min, y_max) != 0) {
-      continue;
+      // continue;
     }
 
-    // TODO(lucas): clip against view frustum
-    // Sutherland-Hodgman clipping algorithm:
+    // frustum clipping
+    i32 clip_buffer_index = 0;
+    i32 output_count = 3;
+    i32 current = 0;
 
-    // a = input[i]
-    // b = input[i + 1]
-    // c = intersect(a, b, edge)
+    // prepare input vertices
+    for (i32 input_index = 0; input_index < 3; ++input_index) {
+      Vertex* v = &input[input_index];
+      v->p = vt[input_index];
+      v->uv = uv[input_index];
+    }
+    for (i32 plane_index = 0; plane_index < 6; ++plane_index, ++clip_buffer_index) {
+      Vertex* input = clip_buffer[clip_buffer_index % LENGTH(clip_buffer)];
+      Vertex* output = clip_buffer[(clip_buffer_index + 1) % LENGTH(clip_buffer)];
 
-    // if b inside:
-    //   if a not inside:
-    //     output.add(c)
-    //   output.add(b)
-
-    // elif a inside:
-    //   output.add(c)
-
-    // project to screen
-    vt[0].x += 1.0f;
-    vt[1].x += 1.0f;
-    vt[2].x += 1.0f;
-    vt[0].y += 1.0f;
-    vt[1].y += 1.0f;
-    vt[2].y += 1.0f;
-    vt[0].x *= 0.5f * renderer.width;
-    vt[1].x *= 0.5f * renderer.width;
-    vt[2].x *= 0.5f * renderer.width;
-    vt[0].y *= 0.5f * renderer.height;
-    vt[1].y *= 0.5f * renderer.height;
-    vt[2].y *= 0.5f * renderer.height;
-
-    if (degenerate(vt[0].x, vt[0].y, vt[1].x, vt[1].y, vt[2].x, vt[2].y)) {
+      switch (plane_index) {
+        case 0: { // near
+          output_count = clip_vertices(input, output, output_count, V3(0, 0, 0), V3(0, 0, 1));
+          break;
+        }
+        case 1: { // far
+          output_count = clip_vertices(input, output, output_count, V3(0, 0, 1), V3(0, 0, -1));
+          break;
+        }
+        case 2: { // left
+          output_count = clip_vertices(input, output, output_count, V3(-1, 0, 0), V3(1, 0, 0));
+          break;
+        }
+        case 3: { // right
+          output_count = clip_vertices(input, output, output_count, V3(1, 0, 0), V3(-1, 0, 0));
+          break;
+        }
+        case 4: { // top
+          output_count = clip_vertices(input, output, output_count, V3(0, -1, 0), V3(0, 1, 0));
+          break;
+        }
+        case 5: { // bottom
+          output_count = clip_vertices(input, output, output_count, V3(0, 1, 0), V3(0, -1, 0));
+          break;
+        }
+        default:
+          break;
+      }
+    }
+    if (output_count == 0) {
       continue;
     }
+    ASSERT(output_count < MAX_VERTEX_OUTPUT);
 
     light_contrib = 1.0f;
 #ifndef NO_LIGHTING
@@ -839,8 +883,32 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
 #endif
 #endif
 
-    // render_texture_triangle(vt[0].x, vt[0].y, vt[1].x, vt[1].y, vt[2].x, vt[2].y, vt[0].z, vt[1].z, vt[2].z, uv[0], uv[1], uv[2], texture, light_contrib);
-    render_triangle_advanced(vt[0], vt[1], vt[2], uv[0], uv[1], uv[2], texture, world_normal, pos, light_contrib);
+    Vertex* clipped = clip_buffer[clip_buffer_index % LENGTH(clip_buffer)];
+    for (i32 vertex_index = 0; vertex_index < output_count; ++vertex_index) {
+      Vertex* v = &clipped[vertex_index];
+      v->p = project_to_screen(v->p, renderer.width, renderer.height);
+    }
+    Vertex first = clipped[0];
+    for (i32 vertex_index = 1; vertex_index + 1 < output_count; vertex_index += 1) {
+      v3 a = first.p;
+      v3 b = clipped[vertex_index].p;
+      v3 c = clipped[vertex_index + 1].p;
+      if (degenerate(a.x, a.y, b.x, b.y, c.x, c.y)) {
+        continue;
+      }
+      render_triangle_advanced(a, b, c, first.uv, clipped[vertex_index].uv, clipped[vertex_index + 1].uv, texture, world_normal, pos, light_contrib);
+    }
+
+    if (RENDER_VERTICES) {
+      Vertex* result = clip_buffer[clip_buffer_index % LENGTH(clip_buffer)];
+      for (i32 vertex = 0; vertex < output_count; ++vertex) {
+        Vertex v = result[vertex];
+        Color color = COLOR_RGB(0xfd, 0xd8, 0x35);
+        i32 x = v.p.x;
+        i32 y = v.p.y;
+        render_fill_circle(x, y, 1, color);
+      }
+    }
   }
 }
 
@@ -859,13 +927,71 @@ void renderer_begin_frame(f32 dt) {
 #endif
 }
 
+void renderer_post_process(void) {
+  if (renderer.edge_detection) {
+    f32 normalization_factor = 1.0f / UINT8_MAX;
+    for (i32 y = 0; y < renderer.height; ++y) {
+      for (i32 x = 0; x < renderer.width; ++x) {
+        Color* target = get_pixel_addr(x, y);
+        Color* sample = get_pixel_addr_from_buffer(renderer.normal_buffer, x, y);
+        f32 f = 0;
+        f32 sample_count = 0;
+        v3 sample_v = V3_OP1(V3(sample->r, sample->g, sample->b), normalization_factor, *);
+        for (i32 sy = -1; sy < 1; ++sy) {
+          for (i32 sx = -1; sx < 1; ++sx, ++sample_count) {
+            if (sx == 0 && sy == 0) {
+              continue;
+            }
+            Color* n = get_pixel_addr_bounds_checked(renderer.normal_buffer, x + sx, y + sy);
+            if (!n) {
+              f += 1;
+              continue;
+            }
+            v3 n_v = V3_OP1(V3(n->r, n->g, n->b), normalization_factor, *);
+            f += ABS(f32, v3_dot(n_v, sample_v));
+          }
+        }
+        f *= 1.0f / sample_count;
+        *target = color_lerp(*target, EDGE_DETECTION_COLOR, 1.0f - f);
+      }
+    }
+  }
+
+  if (renderer.fog) {
+    Color fog_color = FOG_COLOR; // COLOR_RGB(210, 210, 230);
+    // f(x) = 1 / (ax * bx * cx);
+    f32 falloff_a = 500;
+    f32 falloff_b = 250;
+    f32 falloff_c = 32;
+    for (i32 y = 0; y < renderer.height; ++y) {
+      for (i32 x = 0; x < renderer.width; ++x) {
+        Color* color = get_pixel_addr(x, y);
+        f32 z = 1 - get_zbuffer_value(x, y);
+        f32 z_adjusted = CLAMP(1.0f / (1.0f + (falloff_a * z * falloff_b * z * falloff_c * z)), 0.0f, 1.0f);
+        *color = color_lerp(*color, fog_color, z_adjusted);
+      }
+    }
+  }
+  if (renderer.dither) {
+    for (i32 y = 0; y < renderer.height; ++y) {
+      for (i32 x = 0; x < renderer.width; ++x) {
+        Color* color = get_pixel_addr(x, y);
+        u8 d = (x % 2) * (y % 2);
+        color->r -= (color->r * 0.1f) * d;
+        color->g -= (color->g * 0.1f) * d;
+        color->b -= (color->b * 0.1f) * d;
+      }
+    }
+  }
+}
+
 void renderer_end_frame(void) {
   if (renderer.render_zbuffer) {
     for (i32 y = 0; y < renderer.height; ++y) {
       for (i32 x = 0; x < renderer.width; ++x) {
         Color* color = get_pixel_addr(x, y);
         f32 z = *get_zbuffer_addr(x, y);
-        u8 c = UINT8_MAX * (z * z * z * z); //- CLAMP(UINT8_MAX * ABS(f32, (*z * *z * *z)), 0, UINT8_MAX);
+        u8 c = UINT8_MAX * (z * z * z * z);
         *color = COLOR_RGB(c, c, c);
       }
     }
@@ -876,63 +1002,6 @@ void renderer_end_frame(void) {
         Color* color = get_pixel_addr(x, y);
         Color* normal = get_pixel_addr_from_buffer(renderer.normal_buffer, x, y);
         *color = *normal;
-      }
-    }
-  }
-  else {
-    if (renderer.edge_detection) {
-      f32 normalization_factor = 1.0f / UINT8_MAX;
-      for (i32 y = 0; y < renderer.height; ++y) {
-        for (i32 x = 0; x < renderer.width; ++x) {
-          Color* target = get_pixel_addr(x, y);
-          Color* sample = get_pixel_addr_from_buffer(renderer.normal_buffer, x, y);
-          f32 f = 0;
-          f32 sample_count = 0;
-          v3 sample_v = V3_OP1(V3(sample->r, sample->g, sample->b), normalization_factor, *);
-          for (i32 sy = -1; sy < 1; ++sy) {
-            for (i32 sx = -1; sx < 1; ++sx, ++sample_count) {
-              if (sx == 0 && sy == 0) {
-                continue;
-              }
-              Color* n = get_pixel_addr_bounds_checked(renderer.normal_buffer, x + sx, y + sy);
-              if (!n) {
-                f += 1;
-                continue;
-              }
-              v3 n_v = V3_OP1(V3(n->r, n->g, n->b), normalization_factor, *);
-              f += ABS(f32, v3_dot(n_v, sample_v));
-            }
-          }
-          f *= 1.0f / sample_count;
-          *target = lerp_color(*target, EDGE_DETECTION_COLOR, 1.0f - f);
-        }
-      }
-    }
-
-    if (renderer.fog) {
-      Color fog_color = FOG_COLOR; // COLOR_RGB(210, 210, 230);
-      // f(x) = 1 / (ax * bx * cx);
-      f32 falloff_a = 500;
-      f32 falloff_b = 250;
-      f32 falloff_c = 32;
-      for (i32 y = 0; y < renderer.height; ++y) {
-        for (i32 x = 0; x < renderer.width; ++x) {
-          Color* color = get_pixel_addr(x, y);
-          f32 z = 1 - get_zbuffer_value(x, y);
-          f32 z_adjusted = CLAMP(1.0f / (1.0f + (falloff_a * z * falloff_b * z * falloff_c * z)), 0.0f, 1.0f);
-          *color = lerp_color(*color, fog_color, z_adjusted);
-        }
-      }
-    }
-    if (renderer.dither) {
-      for (i32 y = 0; y < renderer.height; ++y) {
-        for (i32 x = 0; x < renderer.width; ++x) {
-          Color* color = get_pixel_addr(x, y);
-          u8 d = (x % 2) * (y % 2);
-          color->r -= (color->r * 0.1f) * d;
-          color->g -= (color->g * 0.1f) * d;
-          color->b -= (color->b * 0.1f) * d;
-        }
       }
     }
   }

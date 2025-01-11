@@ -131,15 +131,22 @@ inline f32 fast_inv_sqrt(f32 a) {
   return y.f;
 }
 
-inline float lerp(float v0, float v1, float t) {
+inline float f32_lerp(float v0, float v1, float t) {
   return (1.0f - t) * v0 + t * v1;
+}
+
+inline v2 v2_lerp(v2 a, v2 b, f32 t) {
+  return (v2) {
+    f32_lerp(a.x, b.x, t),
+    f32_lerp(a.y, b.y, t)
+  };
 }
 
 inline v3 v3_lerp(v3 a, v3 b, f32 t) {
   return V3(
-    lerp(a.x, b.x, t),
-    lerp(a.y, b.y, t),
-    lerp(a.z, b.z, t)
+    f32_lerp(a.x, b.x, t),
+    f32_lerp(a.y, b.y, t),
+    f32_lerp(a.z, b.z, t)
   );
 }
 
@@ -295,6 +302,55 @@ inline m4 look_at(v3 eye, v3 center, v3 up) {
 	result.e[3][3] = 1.0f;
 
 	return result;
+}
+
+inline bool line_plane_intersection(v3 plane_pos, v3 plane_normal, v3 p1, v3 p2, f32* t) {
+  f32 plane_distance = v3_dot(plane_normal, plane_pos);
+  f32 a_dot = v3_dot(p1, plane_normal);
+  f32 b_dot = v3_dot(p2, plane_normal);
+  f32 ba_diff = b_dot - a_dot;
+  if (ba_diff == 0) {
+    *t = 0;
+    return false;
+  }
+  *t = (plane_distance - a_dot) / ba_diff;
+  return true;
+}
+
+// big thanks to getintogamedev
+// https://www.youtube.com/watch?v=VQHwqMz2Ef8
+inline f32 line_plane_intersection2(v3 a, v3 b, v3 plane) {
+  f32 denom = (plane.x * (b.x - a.x) + plane.y * (b.y - a.y) + plane.z * (b.z - a.z));
+  if (denom != 0) {
+    return -(a.x * plane.x + a.y * plane.y + a.z * plane.z + plane.w) / denom;
+  }
+  return 0;
+}
+
+inline f32 point_to_plane_distance(v3 plane_pos, v3 plane_normal, v3 p) {
+  return v3_dot(plane_normal, p) - v3_dot(plane_normal, plane_pos);
+}
+
+inline v3 plane_from_pos_and_normal(v3 pos, v3 normal) {
+  normal = v3_normalize(normal);
+  return (v3) {
+    normal.x,
+    normal.y,
+    normal.z,
+    -v3_dot(pos, normal)
+  };
+}
+
+inline bool point_behind_plane(v3 pos, v3 plane) {
+  return (pos.x * plane.x + pos.y * plane.y + pos.z * plane.z + plane.w) < 0.0f;
+}
+
+inline v3 project_to_screen(v3 p, i32 width, i32 height) {
+  p.x += 1.0f;
+  p.y += 1.0f;
+  p.x *= 0.5f * width;
+  p.y *= 0.5f * height;
+  return p;
 }
 
 #if USE_SSE

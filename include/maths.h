@@ -54,6 +54,8 @@ typedef union m4 {
 #define V3(X, Y, Z) ((v3) { .x = (X), .y = (Y), .z = (Z) })
 #define V3_OP(A, B, OP) V3((A).x OP (B).x, (A).y OP (B).y, (A).z OP (B).z)
 #define V3_OP1(A, B, OP) V3((A).x OP (B), (A).y OP (B), (A).z OP (B))
+#define OP(A, OPERATOR, B) (V3_OP(A, B, OPERATOR))
+#define OP1(A, OPERATOR, B) (V3_OP1(A, B, OPERATOR))
 
 #define V2(X, Y) ((v2) { .x = (X), .y = (Y) })
 #define V2_OP(A, B, OP) V2((A).x OP (B).x, (A).y OP (B).y)
@@ -105,7 +107,8 @@ extern v3 v3_normalize_fast(v3 a);
 extern v3 v3_sub(v3 a, v3 b);
 extern v3 v3_div_scalar(v3 a, f32 b);
 extern f32 fast_inv_sqrt(f32 a);
-extern f32 lerp(f32 v0, f32 v1, f32 t);
+extern f32 f32_lerp(f32 v0, f32 v1, f32 t);
+extern v2 v2_lerp(v2 a, v2 b, f32 t);
 extern v3 v3_lerp(v3 a, v3 b, f32 t);
 extern f32 radians(f32 angle);
 extern f32 square_root(f32 a);
@@ -117,6 +120,12 @@ extern m4 scale(v3 a);
 extern m4 orthographic(f32 left, f32 right, f32 bottom, f32 top, f32 z_near, f32 z_far);
 extern m4 perspective(f32 fov, f32 aspect, f32 z_near, f32 z_far);
 extern m4 look_at(v3 eye, v3 center, v3 up);
+extern bool line_plane_intersection(v3 plane_pos, v3 plane_normal, v3 p1, v3 p2, f32* t);
+extern f32 line_plane_intersection2(v3 a, v3 b, v3 plane);
+extern f32 point_to_plane_distance(v3 plane_pos, v3 plane_normal, v3 p);
+extern v3 plane_from_pos_and_normal(v3 pos, v3 normal);
+extern bool point_behind_plane(v3 pos, v3 plane);
+extern v3 project_to_screen(v3 p, i32 width, i32 height);
 
 #if USE_SSE
 
