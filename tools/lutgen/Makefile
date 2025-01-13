@@ -2,11 +2,11 @@
 
 CC=clang
 
-PROG=objtoc
+PROG=lutgen
 
-FLAGS=-o ${PROG} -Wall -O3 -I../../deps/common.h -I../../include
+FLAGS=-o ${PROG} -Wall -O3 -I../../deps/common.h -I../../include -lm
 
-SRC=objtoc.c
+SRC=lutgen.c
 
 all: compile
 

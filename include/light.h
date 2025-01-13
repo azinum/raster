@@ -19,5 +19,6 @@ typedef struct Light {
 } Light;
 
 Light light_create(v3 pos, f32 strength, f32 radius);
+f32 light_calculate_contribution(Light light, v3 pos, v3 normal);
 
 #endif // _LIGHT_H

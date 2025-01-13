@@ -24,4 +24,6 @@ for TTF_PATH in data/font/*.ttf; do
 	font2c ${TTF_PATH} -n ${NAME} >> ${FILE}
 done
 
+lutgen >> ${FILE}
+
 echo "#endif // _ASSETS_H" >> ${FILE}

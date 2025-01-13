@@ -226,8 +226,6 @@ function updateDebugInfo(wasm, elem, dt) {
 
 		const debugTextElem = document.getElementById("debug-info");
 
-		let startTime = 0;
-		let ticks = 0;
 		function processInputEvents() {
 			for (let i = 0; i < events.length; ++i) {
 				let e = events[i];
@@ -235,12 +233,14 @@ function updateDebugInfo(wasm, elem, dt) {
 			}
 			events.length = 0;
 		}
+
+		let prevTime = 0;
+		let currentTime = performance.now();
+		let ticks = 0;
 		function frame_step(timestamp) {
-			if (startTime === undefined) {
-				startTime = timestamp;
-			}
-			const dt = (timestamp - startTime) * 0.001;
-			startTime = timestamp;
+			prevTime = currentTime;
+			currentTime = performance.now();
+			const dt = (currentTime - prevTime) * 0.001;
 			instance.exports.clear_input_events();
 			processInputEvents();
 			instance.exports.update_and_render(dt);
@@ -254,11 +254,11 @@ function updateDebugInfo(wasm, elem, dt) {
 				width, height
 			);
 			context.putImageData(frame, 0, 0);
-			window.requestAnimationFrame(frame_step);
 			ticks += 1;
 			if (!(ticks % 2)) {
 				updateDebugInfo(wasm, debugTextElem, dt);
 			}
+			window.requestAnimationFrame(frame_step);
 		}
 		window.requestAnimationFrame(frame_step);
 	});
