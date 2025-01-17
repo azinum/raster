@@ -72,6 +72,7 @@ typedef union PackedRect16 {
 
 typedef struct Vertex {
   v3 p;
+  v3 wp;
   v2 uv;
 } Vertex;
 
@@ -93,7 +94,7 @@ void render_line(i32 x1, i32 y1, i32 x2, i32 y2, Color color);
 void render_line_3d(v3 p1, v3 p2, Color color);
 void render_fill_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, Color color);
 void render_texture_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, f32 z1, f32 z2, f32 z3, v2 uv1, v2 uv2, v2 uv3, const Texture* texture, f32 light_contrib);
-void render_triangle_advanced(v3 p1, v3 p2, v3 p3, v2 uv1, v2 uv2, v2 uv3, const Texture* texture, v3 world_normal, v3 world_position, f32 light_contrib);
+void render_triangle_advanced(Vertex a, Vertex b, Vertex c, const Texture* texture, v3 world_normal, v3 world_position, Light light);
 void render_fill_circle(i32 x, i32 y, i32 r, Color color);
 void render_fill_circle_3d(v3 pos, f32 r, Color color);
 void render_point_3d(v3 pos, Color color);

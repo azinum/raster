@@ -119,10 +119,10 @@ void init(void) {
   renderer_set_render_target(RENDER_TARGET_CLEAR);
   render_fill_rect_gradient(0, 0, display_get_width(), display_get_height(), COLOR_RGB(5, 5, 5), COLOR_RGB(0, 0, 0), V2(0, -1), V2(0, -1));
   renderer_set_render_target(RENDER_TARGET_COLOR);
-  camera_init(V3(0, 0, -1));
-  camera.rotation.pitch = -10;
+  camera_init(V3(0, 1.8, -2));
+  camera.rotation.pitch = 0;
   camera_update();
-  game.light = light_create(V3(0, -0.5f, -4.5f), 2.0f, 2.5f);
+  game.light = light_create(V3(0, 2.5f, -4.5f), 2.0f, 1.5f);
 }
 
 void mouse_click(i32 x, i32 y) {
@@ -270,7 +270,20 @@ void update_and_render(f32 dt) {
 
   renderer_begin_frame(dt);
   renderer_clear();
-#if 1
+
+  render_mesh(&room_floor, &tile_23, V3(0, 0, 0), V3(1, 1, 1), V3(0, 0, 0), game.light);
+  render_mesh(&room, &brick_6, V3(0, 0, 0), V3(1, 1, 1), V3(0, 0, 0), game.light);
+  render_mesh(&pipes, &pipe, V3(0, 0, 0), V3(1, 1, 1), V3(0, 0, 0), game.light);
+  {
+    f32 size = 1;
+    render_mesh(&cube, &brick_6, V3(0, 1.5f * sinf(game.timer * 0.8f), -6), V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40), game.light);
+  }
+  {
+    f32 size = 1;
+    render_mesh(&cube, &brick_6, V3(2, sinf(game.timer * 0.8f) - 1.2f, -6), V3(size, size, size), V3(0, 0, 0), game.light);
+  }
+
+#if 0
   f32 scale = 1.0f;
   for (f32 x = -7; x < 9; x += scale) {
     for (f32 z = -12; z < 0; z += scale) {
@@ -291,14 +304,6 @@ void update_and_render(f32 dt) {
     }
   }
 
-  {
-    f32 size = 1;
-    render_mesh(&cube, &brick_6, V3(0, 1.5f * sinf(game.timer * 0.8f), -6), V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40), game.light);
-  }
-  {
-    f32 size = 1;
-    render_mesh(&cube, &brick_6, V3(2, sinf(game.timer * 0.8f) - 1.2f, -6), V3(size, size, size), V3(0, 0, 0), game.light);
-  }
 #endif
 
   renderer_post_process();

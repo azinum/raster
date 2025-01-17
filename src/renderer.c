@@ -232,6 +232,7 @@ i32 clip_vertices(Vertex* input, Vertex* output, i32 count, v3 plane_pos, v3 pla
     line_plane_intersection(plane_pos, plane_normal, a.p, b.p, &t);
 
     c.p = v3_lerp(a.p, b.p, t);
+    c.wp = v3_lerp(a.wp, b.wp, t);
     c.uv = v2_lerp(a.uv, b.uv, t);
 
     if (!point_behind_plane(b.p, plane)) { // b inside
@@ -501,24 +502,37 @@ void render_texture_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, f32
   renderer.num_primitives += 1;
 }
 
-// TODO: implement per-pixel shading
-void render_triangle_advanced(v3 p1, v3 p2, v3 p3, v2 uv1, v2 uv2, v2 uv3, const Texture* texture, v3 world_normal, v3 world_position, f32 light_contrib) {
+void render_triangle_advanced(Vertex a, Vertex b, Vertex c, const Texture* texture, v3 world_normal, v3 world_position, Light light) {
   Rect bb = {0};
-  if (!triangle_bb(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, &bb)) {
+  if (!triangle_bb(a.p.x, a.p.y, b.p.x, b.p.y, c.p.x, c.p.y, &bb)) {
     renderer.num_primitives_culled += 1;
     return;
   }
 
   Color texel = COLOR_RGB(255, 0, 255);
-#ifdef NO_TEXTURES
-  texel = COLOR_RGB(
-    UINT8_MAX * light_contrib,
-    UINT8_MAX * light_contrib,
-    UINT8_MAX * light_contrib
-  );
-#endif
 #ifdef DRAW_BB
   render_rect(bb.x, bb.y, bb.w - bb.x, bb.h - bb.y, BB_COLOR);
+#endif
+
+  f32 light_contrib = 0;
+#ifndef NO_LIGHTING
+  f32 light_contribs[3] = {
+    light_calculate_contribution(light, a.wp, world_normal),
+    light_calculate_contribution(light, b.wp, world_normal),
+    light_calculate_contribution(light, c.wp, world_normal)
+  };
+#else
+  f32 light_contribs[3] = {
+    1, 1, 1
+  };
+#endif
+
+#ifdef VOXELGI
+    voxelgi_update_voxel(&renderer.gi, world_position, world_normal, 1/3.0f * (light_contribs[0] + light_contribs[1] + light_contribs[2]), renderer.dt);
+    f32 gi_contrib = voxelgi_get_voxel_weight(&renderer.gi, world_position);
+    light_contribs[0] *= gi_contrib;
+    light_contribs[1] *= gi_contrib;
+    light_contribs[2] *= gi_contrib;
 #endif
 
   for (i32 y = bb.y1; y < bb.y2; ++y) {
@@ -527,7 +541,7 @@ void render_triangle_advanced(v3 p1, v3 p2, v3 p3, v2 uv1, v2 uv2, v2 uv3, const
       f32* zvalue = get_zbuffer_addr(x, y);
       i32 u1, u2, det = 0;
       // TODO: use v3_barycentric here instead
-      if (barycentric(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y, x, y, &u1, &u2, &det)) {
+      if (barycentric(a.p.x, a.p.y, b.p.x, b.p.y, c.p.x, c.p.y, x, y, &u1, &u2, &det)) {
         Color* target = get_pixel_addr(x, y);
         f32 w1 = 0, w2 = 0, w3 = 0;
         if (det != 0) {
@@ -535,23 +549,26 @@ void render_triangle_advanced(v3 p1, v3 p2, v3 p3, v2 uv1, v2 uv2, v2 uv3, const
           w2 = u2 / (f32)det;
         }
         w3 = 1.0f - w1 - w2;
-        f32 z = (p1.z * w1) + (p2.z * w2) + (p3.z * w3);
+        f32 z = (a.p.z * w1) + (b.p.z * w2) + (c.p.z * w3);
         if (z < *zvalue) {
           *zvalue = z;
           renderer.normal_buffer[y * renderer.width + x] = COLOR_RGB(
-            UINT8_MAX * ABS(f32, world_normal.x),
-            UINT8_MAX * ABS(f32, world_normal.y),
-            UINT8_MAX * ABS(f32, world_normal.z)
+            UINT8_MAX * (1 + world_normal.x) * 0.5f,
+            UINT8_MAX * (1 + world_normal.y) * 0.5f,
+            UINT8_MAX * (1 + world_normal.z) * 0.5f
           );
+          light_contrib = light_contribs[0] * w1 + light_contribs[1] * w2 + light_contribs[2] * w3;
 #ifndef NO_TEXTURES
-          v2 uv = v2_cartesian(uv1, uv2, uv3, w1, w2, w3);
+          v2 uv = v2_cartesian(a.uv, b.uv, c.uv, w1, w2, w3);
           i32 x_coord = (ABS(i32, texture->width * uv.x)) % texture->width;
           i32 y_coord = (ABS(i32, texture->height * uv.y)) % texture->height;
           texel = texture_get_pixel(texture, x_coord, y_coord);
+#else
+          texel = COLOR_RGB(255, 255, 255);
+#endif
           texel.r *= light_contrib;
           texel.g *= light_contrib;
           texel.b *= light_contrib;
-#endif
           draw_pixel(target, texel);
         }
       }
@@ -733,10 +750,8 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
 
   model = m4_multiply(model, scale(size));
 
-  m4 mv = m4_multiply(projection, view); // TODO: calculate once per frame
+  m4 vp = m4_multiply(projection, view); // TODO: calculate once per frame
   m4 mvp = m4_multiply(projection, m4_multiply(view, model));
-
-  f32 light_contrib = 0.0f;
 
   #define MAX_VERTEX_OUTPUT 9
   Vertex input[MAX_VERTEX_OUTPUT] = {0};
@@ -790,10 +805,6 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
     if (vt[0].w < EPS || vt[1].w < EPS || vt[2].w < EPS) {
       continue;
     }
-    // ndc
-    vt[0] = v3_div_scalar(vt[0], vt[0].w);
-    vt[1] = v3_div_scalar(vt[1], vt[1].w);
-    vt[2] = v3_div_scalar(vt[2], vt[2].w);
 
     v3 line1 = v3_sub(vt[1], vt[0]);
     v3 line2 = v3_sub(vt[2], vt[0]);
@@ -804,10 +815,10 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
     const f32 y_min = -1.0f;
     const f32 y_max =  1.0f;
 
-    // TODO: find a better use of this because it can reject things that are still in view
-    if (trivial_reject(vt[0].x, vt[0].y, x_min, x_max, y_min, y_max) != 0 && trivial_reject(vt[1].x, vt[1].y, x_min, x_max, y_min, y_max) != 0 && trivial_reject(vt[2].x, vt[2].y, x_min, x_max, y_min, y_max) != 0) {
-      // continue;
-    }
+    // ndc
+    vt[0] = v3_div_scalar(vt[0], vt[0].w);
+    vt[1] = v3_div_scalar(vt[1], vt[1].w);
+    vt[2] = v3_div_scalar(vt[2], vt[2].w);
 
     // view frustum clipping
     i32 clip_buffer_index = 0;
@@ -817,6 +828,7 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
     // prepare input vertices
     for (i32 input_index = 0; input_index < 3; ++input_index) {
       Vertex* v = &input[input_index];
+      v->wp = vp[input_index];
       v->p = vt[input_index];
       v->uv = uv[input_index];
     }
@@ -858,16 +870,6 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
     }
     ASSERT(output_count < MAX_VERTEX_OUTPUT);
 
-    light_contrib = 1.0f;
-#ifndef NO_LIGHTING
-    light_contrib = light_calculate_contribution(light, pos, world_normal);
-#ifdef VOXELGI
-    voxelgi_update_voxel(&renderer.gi, position, world_normal, light_contrib, renderer.dt);
-    f32 gi_contrib = voxelgi_get_voxel_weight(&renderer.gi, pos);
-    light_contrib *= gi_contrib;
-#endif
-#endif
-
     Vertex* clipped = clip_buffer[clip_buffer_index % LENGTH(clip_buffer)];
     for (i32 vertex_index = 0; vertex_index < output_count; ++vertex_index) {
       Vertex* v = &clipped[vertex_index];
@@ -881,7 +883,7 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
       if (degenerate(a.x, a.y, b.x, b.y, c.x, c.y)) {
         continue;
       }
-      render_triangle_advanced(a, b, c, first.uv, clipped[vertex_index].uv, clipped[vertex_index + 1].uv, texture, world_normal, pos, light_contrib);
+      render_triangle_advanced(first, clipped[vertex_index], clipped[vertex_index + 1], texture, world_normal, pos, light);
     }
 
     if (RENDER_VERTICES) {
@@ -957,6 +959,9 @@ void renderer_post_process(void) {
         f32 f = 0;
         f32 sample_count = 0;
         v3 sample_v = V3_OP1(V3(sample->r, sample->g, sample->b), normalization_factor, *);
+        // (1+c)*0.5
+        sample_v = V3_OP1(sample_v, 0.5f, -);
+        sample_v = V3_OP1(sample_v, 2, *);
         for (i32 sy = -1; sy < 1; ++sy) {
           for (i32 sx = -1; sx < 1; ++sx) {
             Color* n = get_pixel_addr_bounds_checked(renderer.normal_buffer, x + sx, y + sy);
@@ -964,12 +969,14 @@ void renderer_post_process(void) {
               continue;
             }
             v3 n_v = V3_OP1(V3(n->r, n->g, n->b), normalization_factor, *);
-            f += ABS(f32, v3_dot(n_v, sample_v));
+            n_v = V3_OP1(n_v, 0.5f, -);
+            n_v = V3_OP1(n_v, 2, *);
+            f += v3_dot(n_v, sample_v);
             sample_count += 1;
           }
         }
         f *= 1.0f / sample_count;
-        *target = color_lerp(*target, EDGE_DETECTION_COLOR, 1.0f - f);
+        *target = color_lerp(*target, EDGE_DETECTION_COLOR, 1-f);
       }
     }
   }
