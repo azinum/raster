@@ -10,7 +10,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install clang llvm
+          sudo apt install clang llvm lld
       - name: Build tools
         run: |
           cd tools
