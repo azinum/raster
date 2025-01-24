@@ -1,5 +1,7 @@
 # Makefile
 
+INSTALL_PATH?=/usr/local/bin
+
 CC=gcc
 
 PROG=bintoc
@@ -17,8 +19,8 @@ compile: prepare
 	strip ${PROG}
 
 install:
-	chmod o+x bintoc
-	cp bintoc /usr/local/bin
+	chmod o+x ${PROG}
+	cp ${PROG} ${INSTALL_PATH}
 
 uninstall:
-	rm /usr/local/bin/bintoc
+	rm ${INSTALL_PATH}/${PROG}

@@ -1,0 +1,23 @@
+name: CI
+on:
+  push:
+    branches: [master]
+jobs:
+  build-linux:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v1
+      - name: Build tools
+        run: |
+          cd tools
+          make
+      - name: Install tools
+        run: |
+          cd tools
+          make install INSTALL_PATH=../..
+      - name: Compile assets
+        run: |
+          ./compile_assets.sh ./
+      - name: Build
+        run: |
+          ./build.sh

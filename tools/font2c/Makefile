@@ -1,5 +1,7 @@
 # Makefile
 
+INSTALL_PATH?=/usr/local/bin
+
 CC=clang
 
 PROG=font2c
@@ -18,8 +20,7 @@ compile: prepare
 
 install:
 	chmod o+x ${PROG}
-	cp ${PROG} /usr/local/bin
+	cp ${PROG} ${INSTALL_PATH}
 
 uninstall:
-	rm /usr/local/bin/${PROG}
-
+	rm ${INSTALL_PATH}/${PROG}
