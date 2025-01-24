@@ -6,7 +6,7 @@ CC=clang
 
 PROG=pngtoc
 
-FLAGS=-o ${PROG} -Wall -O2 -I../../deps/common.h -I../../include -lm
+FLAGS=-o ${PROG} -Wall -O2 -I../../include -lm
 
 SRC=pngtoc.c
 

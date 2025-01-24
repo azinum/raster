@@ -6,7 +6,7 @@ CC=clang
 
 PROG=lutgen
 
-FLAGS=-o ${PROG} -Wall -O3 -I../../deps/common.h -I../../include -lm
+FLAGS=-o ${PROG} -Wall -O3 -I../../include -lm
 
 SRC=lutgen.c
 
