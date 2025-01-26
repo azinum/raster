@@ -3,32 +3,11 @@ on:
   push:
     branches: [master]
 jobs:
-  build-linux-ubuntu-20.04:
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v1
-      - name: Download submodules
-        run: git submodule --init --recursive
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt install clang llvm lld
-      - name: Build tools
-        run: |
-          cd tools
-          make
-      - name: Install tools
-        run: |
-          cd tools
-          make install INSTALL_PATH=../..
-      - name: Compile assets
-        run: |
-          ./compile_assets.sh ./
-      - name: Build
-        run: |
-          ./build.sh
-  build-linux-ubuntu-latest:
-    runs-on: ubuntu-latest
+  build-linux:
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v1
       - name: Download submodules
