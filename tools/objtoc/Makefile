@@ -6,7 +6,7 @@ CC=clang
 
 PROG=objtoc
 
-FLAGS=-o ${PROG} -Wall -O3 -I../../include
+FLAGS=-o ${PROG} -Wall -O3 -I../../include -I../../deps/common.h
 
 SRC=objtoc.c
 
