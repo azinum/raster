@@ -11,7 +11,7 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - name: Download submodules
-        run: git submodule --init --recursive
+        run: git submodule update --init --recursive
       - name: Install dependencies
         run: |
           sudo apt update
