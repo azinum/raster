@@ -2,3 +2,4 @@
 *.swp
 *.wat
 include/assets.h
+raster

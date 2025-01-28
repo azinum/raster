@@ -9,7 +9,7 @@ void camera_init(v3 pos) {
   camera.forward = V3(0, 0, 1);
 
   camera.rotation = V3(0, -90, 0);
-  projection = perspective(CAMERA_FOV, WINDOW_WIDTH / (f32)WINDOW_HEIGHT, CAMERA_ZNEAR, CAMERA_ZFAR);
+  projection = perspective(CAMERA_FOV, RASTER_WIDTH / (f32)RASTER_HEIGHT, CAMERA_ZNEAR, CAMERA_ZFAR);
 }
 
 void camera_update(void) {

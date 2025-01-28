@@ -179,7 +179,7 @@ function updateDebugInfo(wasm, elem, dt) {
 		wasm = obj;
 		const instance = obj.instance;
 		const memoryView = new Uint8Array(obj.instance.exports.memory.buffer);
-		obj.instance.exports.init();
+		obj.instance.exports.wasm_main();
 		const displayAddress = instance.exports.display_get_addr();
 		const width = instance.exports.display_get_width();
 		const height = instance.exports.display_get_height();

@@ -14,10 +14,10 @@ typedef struct Renderer {
   Color* target;
   Color* color_buffer;
   Color* clear_buffer;
-  f32 zbuffer[WINDOW_WIDTH * WINDOW_HEIGHT];
-  f32 clear_zbuffer[WINDOW_WIDTH * WINDOW_HEIGHT];
-  Color normal_buffer[WINDOW_WIDTH * WINDOW_HEIGHT];
-  Color clear_normal_buffer[WINDOW_WIDTH * WINDOW_HEIGHT];
+  f32 zbuffer[RASTER_WIDTH * RASTER_HEIGHT];
+  f32 clear_zbuffer[RASTER_WIDTH * RASTER_HEIGHT];
+  Color normal_buffer[RASTER_WIDTH * RASTER_HEIGHT];
+  Color clear_normal_buffer[RASTER_WIDTH * RASTER_HEIGHT];
   i32 width;
   i32 height;
   Blend blend_mode;

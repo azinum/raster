@@ -5,8 +5,10 @@
 
 #define DEBUG_OUT_OF_BOUNDS
 
-const u32 WINDOW_WIDTH    = 320;
-const u32 WINDOW_HEIGHT   = 240;
+const u32 RASTER_WIDTH    = 320;
+const u32 RASTER_HEIGHT   = 240;
+const u32 WINDOW_WIDTH    = RASTER_WIDTH  * 3;
+const u32 WINDOW_HEIGHT   = RASTER_HEIGHT * 3;
 const v3 WORLD_UP         = V3(0, 1, 0);
 f32 LIGHT_AMBIENCE        = 1.0f / (f32)UINT8_MAX;
 f32 CAMERA_ZFAR           = 35.0f;
@@ -24,7 +26,7 @@ const i32 VOXELGI_X       = 16;
 const i32 VOXELGI_Y       = 4;
 const i32 VOXELGI_Z       = 12;
 #define VOXELGI_VOXEL_COUNT (VOXELGI_X * VOXELGI_Y * VOXELGI_Z)
-const f32 DT_MIN          = 1.0f / 120.0f;
+const f32 DT_MIN          = 1.0f / 1000.0f;
 const f32 DT_MAX          = 1.0f / 10.0f;
 
 #endif // _CONFIG_H
