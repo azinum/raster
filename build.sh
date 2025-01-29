@@ -1,10 +1,40 @@
-#!/bin/sh
+#!/bin/bash
 
 set -xe
 
-OPT=-O3
-clang --target=wasm32 -flto -ffast-math -nostdlib -Wl,--no-entry -Wl,--export-all -Wl,--allow-undefined ${OPT} -Iinclude -Ideps/common.h src/main.c -o raster.wasm -DNO_STDLIB -DNO_STDIO -DTARGET_WASM -DNO_MATH -fvectorize
+OPT=-O2
+clang \
+	${OPT} \
+	--target=wasm32 \
+	-fvectorize \
+	-flto \
+	-ffast-math \
+	-nostdlib \
+	-Wl,--no-entry \
+	-Wl,--export-all \
+	-Wl,--allow-undefined \
+	-Iinclude \
+	-Ideps/common.h \
+	src/main.c \
+	-o raster.wasm \
+	-DNO_STDLIB \
+	-DNO_STDIO \
+	-DTARGET_WASM \
+	-DNO_MATH \
+	-DNO_OMP
 
-clang ${OPT} -Iinclude -Ideps/common.h src/main.c -o raster `pkg-config --libs --cflags sdl2` -lm -fvectorize -march=native -DNO_TEXTURES
+clang \
+	${OPT} \
+	-fvectorize \
+	-flto \
+	-ffast-math \
+	-Iinclude \
+	-Ideps/common.h \
+	src/main.c \
+	-o raster \
+	`pkg-config --libs --cflags sdl2` \
+	-lm \
+	-DNO_OMP && \
+	strip raster
 
 # wasm2wat raster.wasm -o raster.wat

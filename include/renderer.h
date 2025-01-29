@@ -77,9 +77,9 @@ typedef struct Vertex {
 } Vertex;
 
 typedef struct Triangle {
-  v3 a;
-  v3 b;
-  v3 c;
+  Vertex a;
+  Vertex b;
+  Vertex c;
 } Triangle;
 
 #define RECT(X, Y, W, H) (Rect) { .x = X, .y = Y, .w = W, .h = H, }
@@ -107,6 +107,7 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
 void render_text(const char* text, size_t length, i32 x, i32 y, f32 size, Color tint);
 void renderer_set_clear_color(Color color);
 void renderer_begin_frame(f32 dt);
+void renderer_draw(void);
 void renderer_post_process(void);
 void renderer_end_frame(void);
 void renderer_clear(void);
@@ -118,5 +119,6 @@ void renderer_toggle_edge_detection(void);
 void renderer_toggle_render_zbuffer(void);
 void renderer_toggle_render_normal_buffer(void);
 void renderer_toggle_render_voxels(void);
+void renderer_toggle_texture_mapping(void);
 
 #endif // _RENDERER_H

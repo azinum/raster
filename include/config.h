@@ -5,10 +5,10 @@
 
 #define DEBUG_OUT_OF_BOUNDS
 
-const u32 RASTER_WIDTH    = 320;
-const u32 RASTER_HEIGHT   = 240;
-const u32 WINDOW_WIDTH    = RASTER_WIDTH  * 3;
-const u32 WINDOW_HEIGHT   = RASTER_HEIGHT * 3;
+#define RASTER_WIDTH      320
+#define RASTER_HEIGHT     240
+#define WINDOW_WIDTH      RASTER_WIDTH  * 3
+#define WINDOW_HEIGHT     RASTER_HEIGHT * 3
 const v3 WORLD_UP         = V3(0, 1, 0);
 f32 LIGHT_AMBIENCE        = 1.0f / (f32)UINT8_MAX;
 f32 CAMERA_ZFAR           = 35.0f;
@@ -22,9 +22,9 @@ Color FOG_COLOR           = COLOR_RGB(0, 0, 0);
 Color EDGE_DETECTION_COLOR = COLOR_RGB(0, 0, 0);
 v3 VOXELGI_POS            = V3(7, 0, 12);
 bool VOXELGI_RENDER_VOXELS = false; // for debugging
-const i32 VOXELGI_X       = 16;
-const i32 VOXELGI_Y       = 4;
-const i32 VOXELGI_Z       = 12;
+#define VOXELGI_X         16
+#define VOXELGI_Y         4
+#define VOXELGI_Z         12
 #define VOXELGI_VOXEL_COUNT (VOXELGI_X * VOXELGI_Y * VOXELGI_Z)
 const f32 DT_MIN          = 1.0f / 1000.0f;
 const f32 DT_MAX          = 1.0f / 10.0f;

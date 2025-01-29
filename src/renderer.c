@@ -5,15 +5,45 @@
 // #define UNIFORM_LIGHTING_POSITION
 // #define NO_TEXTURES
 // #define VOXELGI
+// #define NO_RENDER_COMMANDS
 
 #define BB_COLOR COLOR_RGBA(255, 255, 255, 150)
 
+#define MAX_RENDER_COMMANDS (1024*4)
+#define MAX_RENDER_TEXTURES (8)
+
 static Vsample voxelgi_samples[VOXELGI_VOXEL_COUNT] = {0};
+
+typedef enum Render_command_type {
+  RENDER_CMD_DRAW_TRIANGLE,
+  RENDER_CMD_SET_TEXTURE,
+  RENDER_CMD_ENABLE_DEPTH_TEST,
+  RENDER_CMD_DISABLE_DEPTH_TEST,
+  RENDER_CMD_ENABLE_TEXTURE_MAPPING,
+  RENDER_CMD_DISABLE_TEXTURE_MAPPING,
+  RENDER_CMD_SET_LIGHT,
+
+  MAX_RENDER_COMMAND_TYPE,
+} Render_command_type;
+
+typedef struct Render_command {
+  Render_command_type type;
+  union {
+    struct {
+      Triangle triangle;
+      v3 world_normal;
+      v3 world_position;
+    } prim;
+    Texture texture;
+    Light light;
+  };
+} Render_command;
 
 typedef struct Renderer {
   Color* target;
   Color* color_buffer;
   Color* clear_buffer;
+  f32* zbuffer_target;
   f32 zbuffer[RASTER_WIDTH * RASTER_HEIGHT];
   f32 clear_zbuffer[RASTER_WIDTH * RASTER_HEIGHT];
   Color normal_buffer[RASTER_WIDTH * RASTER_HEIGHT];
@@ -29,6 +59,14 @@ typedef struct Renderer {
   i32 num_primitives;         // triangles drawn
   i32 num_primitives_culled;  // triangles culled
   f32 dt;
+  bool depth_test;
+  bool texture_mapping;
+
+  Render_command render_commands[MAX_RENDER_COMMANDS];
+  size_t render_command_count;
+  Texture textures[MAX_RENDER_TEXTURES];
+  size_t render_texture_count;
+
 #ifdef VOXELGI
   Voxelgi gi;
 #endif
@@ -54,6 +92,9 @@ static v2 v2_cartesian(v2 a, v2 b, v2 c, f32 w1, f32 w2, f32 w3);
 static bool degenerate(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3);
 static u8 trivial_reject(f32 x, f32 y, const f32 x_min, const f32 x_max, const f32 y_min, const f32 y_max);
 static i32 clip_vertices(Vertex* input, Vertex* output, i32 count, v3 plane_pos, v3 plane_normal);
+static void push_render_command(Render_command cmd);
+static void push_render_command_simple(Render_command_type cmd_type);
+static void process_render_commands(void);
 
 inline Color* get_pixel_addr(i32 x, i32 y) {
 #ifndef DEBUG_OUT_OF_BOUNDS
@@ -97,19 +138,19 @@ inline f32* get_zbuffer_addr(i32 x, i32 y) {
 #ifndef DEBUG_OUT_OF_BOUNDS
   ASSERT(x >= 0 && x < renderer.width && y >= 0 && y < renderer.height);
 #endif
-  return &renderer.zbuffer[y * renderer.width + x];
+  return &renderer.zbuffer_target[y * renderer.width + x];
 }
 
 inline f32 get_zbuffer_value(i32 x, i32 y) {
 #ifndef DEBUG_OUT_OF_BOUNDS
   ASSERT(x >= 0 && x < renderer.width && y >= 0 && y < renderer.height);
 #endif
-  return renderer.zbuffer[y * renderer.width + x];
+  return renderer.zbuffer_target[y * renderer.width + x];
 }
 
 f32 get_zbuffer_value_bounds_checked(i32 x, i32 y, f32 out_of_bounds_value) {
   if (x >= 0 && x < renderer.width && y >= 0 && y < renderer.height) {
-    return renderer.zbuffer[y * renderer.width + x];
+    return renderer.zbuffer_target[y * renderer.width + x];
   }
   return out_of_bounds_value;
 }
@@ -249,10 +290,74 @@ i32 clip_vertices(Vertex* input, Vertex* output, i32 count, v3 plane_pos, v3 pla
   return output_count;
 }
 
+void push_render_command(Render_command cmd) {
+  if (renderer.render_command_count < MAX_RENDER_COMMANDS) {
+    renderer.render_commands[renderer.render_command_count++] = cmd;
+  }
+}
+
+void push_render_command_simple(Render_command_type cmd_type) {
+  if (renderer.render_command_count < MAX_RENDER_COMMANDS) {
+    Render_command cmd = (Render_command) {
+      .type = cmd_type,
+    };
+    renderer.render_commands[renderer.render_command_count++] = cmd;
+  }
+}
+
+void process_render_commands(void) {
+  Light light = light_create(V3(0, 0, 0), 0, 0);
+  Texture current_texture;
+
+  i32 i = 0;
+  for (i = 0; i < renderer.render_command_count; ++i) {
+    Render_command* cmd = &renderer.render_commands[i];
+    switch (cmd->type) {
+      case RENDER_CMD_DRAW_TRIANGLE: {
+        Texture* texture = &current_texture;
+        Triangle* t = &cmd->prim.triangle;
+        if (texture->data) {
+          render_triangle_advanced(t->a, t->b, t->c, texture, cmd->prim.world_normal, cmd->prim.world_position, light);
+        }
+        break;
+      }
+      case RENDER_CMD_SET_TEXTURE: {
+        if (renderer.render_texture_count < MAX_RENDER_TEXTURES) {
+          renderer.textures[renderer.render_texture_count++] = cmd->texture;
+        }
+        current_texture = cmd->texture;
+        break;
+      }
+      case RENDER_CMD_ENABLE_DEPTH_TEST: {
+        renderer.depth_test = true;
+        break;
+      }
+      case RENDER_CMD_DISABLE_DEPTH_TEST: {
+        renderer.depth_test = false;
+        break;
+      }
+      case RENDER_CMD_ENABLE_TEXTURE_MAPPING: {
+        renderer.texture_mapping = true;
+        break;
+      }
+      case RENDER_CMD_DISABLE_TEXTURE_MAPPING: {
+        renderer.texture_mapping = false;
+        break;
+      }
+      case RENDER_CMD_SET_LIGHT: {
+        light = cmd->light;
+      }
+      default:
+        break;
+    }
+  }
+}
+
 void renderer_init(Color* color_buffer, Color* clear_buffer, u32 width, u32 height) {
   renderer.color_buffer = color_buffer;
   renderer.clear_buffer = clear_buffer;
   renderer_set_render_target(RENDER_TARGET_COLOR);
+  renderer.zbuffer_target = renderer.zbuffer;
   renderer.width = width;
   renderer.height = height;
   renderer.blend_mode = BLEND_NONE;
@@ -264,10 +369,15 @@ void renderer_init(Color* color_buffer, Color* clear_buffer, u32 width, u32 heig
   renderer.num_primitives = 0;
   renderer.num_primitives_culled = 0;
   renderer.dt = 0;
+  renderer.depth_test = true;
+  renderer.texture_mapping = true;
+  renderer.render_command_count = 0;
+  renderer.render_texture_count = 0;
+
   for (i32 i = 0; i < width * height; ++i) {
     renderer.clear_zbuffer[i] = 1.0f;
   }
-  memcpy(&renderer.zbuffer[0], &renderer.clear_zbuffer[0], sizeof(f32) * width * height);
+  memcpy(&renderer.zbuffer_target[0], &renderer.clear_zbuffer[0], sizeof(f32) * width * height);
   for (i32 i = 0; i < width * height; ++i) {
     renderer.clear_normal_buffer[i] = COLOR_RGB(0, 0, 0);
   }
@@ -482,20 +592,28 @@ void render_texture_triangle(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3, f32
           w2 = u2 / (f32)det;
         }
         w3 = 1.0f - w1 - w2;
-        f32 z = (z1 * w1) + (z2 * w2) + (z3 * w3); // barycentric to cartesian conversion
-        if (z < *zvalue) {
-          *zvalue = z;
-#ifndef NO_TEXTURES
-          v2 uv = v2_cartesian(uv1, uv2, uv3, w1, w2, w3);
-          i32 x_coord = (ABS(i32, texture->width * uv.x)) % texture->width;
-          i32 y_coord = (ABS(i32, texture->height * uv.y)) % texture->height;
-          texel = texture_get_pixel(texture, x_coord, y_coord);
-          texel.r *= light_contrib;
-          texel.g *= light_contrib;
-          texel.b *= light_contrib;
-#endif
-          draw_pixel(target, texel);
+        if (renderer.depth_test) {
+          f32 z = (z1 * w1) + (z2 * w2) + (z3 * w3); // barycentric to cartesian conversion
+          if (z < *zvalue) {
+            *zvalue = z;
+          }
+          else {
+            continue;
+          }
         }
+#ifndef NO_TEXTURES
+        if (!renderer.texture_mapping) {
+          continue;
+        }
+        v2 uv = v2_cartesian(uv1, uv2, uv3, w1, w2, w3);
+        i32 x_coord = (ABS(i32, texture->width * uv.x)) % texture->width;
+        i32 y_coord = (ABS(i32, texture->height * uv.y)) % texture->height;
+        texel = texture_get_pixel(texture, x_coord, y_coord);
+        texel.r *= light_contrib;
+        texel.g *= light_contrib;
+        texel.b *= light_contrib;
+#endif
+        draw_pixel(target, texel);
       }
     }
   }
@@ -549,28 +667,34 @@ void render_triangle_advanced(Vertex a, Vertex b, Vertex c, const Texture* textu
           w2 = u2 / (f32)det;
         }
         w3 = 1.0f - w1 - w2;
-        f32 z = (a.p.z * w1) + (b.p.z * w2) + (c.p.z * w3);
-        if (z < *zvalue) {
-          *zvalue = z;
-          renderer.normal_buffer[y * renderer.width + x] = COLOR_RGB(
-            UINT8_MAX * (1 + world_normal.x) * 0.5f,
-            UINT8_MAX * (1 + world_normal.y) * 0.5f,
-            UINT8_MAX * (1 + world_normal.z) * 0.5f
-          );
-          light_contrib = light_contribs[0] * w1 + light_contribs[1] * w2 + light_contribs[2] * w3;
+        if (renderer.depth_test) {
+          f32 z = (a.p.z * w1) + (b.p.z * w2) + (c.p.z * w3);
+          if (z < *zvalue) {
+            *zvalue = z;
+            renderer.normal_buffer[y * renderer.width + x] = COLOR_RGB(
+              UINT8_MAX * (1 + world_normal.x) * 0.5f,
+              UINT8_MAX * (1 + world_normal.y) * 0.5f,
+              UINT8_MAX * (1 + world_normal.z) * 0.5f
+            );
+          }
+          else {
+            continue;
+          }
+        }
+        light_contrib = light_contribs[0] * w1 + light_contribs[1] * w2 + light_contribs[2] * w3;
+        texel = COLOR_RGB(255, 255, 255);
 #ifndef NO_TEXTURES
+        if (renderer.texture_mapping) {
           v2 uv = v2_cartesian(a.uv, b.uv, c.uv, w1, w2, w3);
           i32 x_coord = (ABS(i32, texture->width * uv.x)) % texture->width;
           i32 y_coord = (ABS(i32, texture->height * uv.y)) % texture->height;
           texel = texture_get_pixel(texture, x_coord, y_coord);
-#else
-          texel = COLOR_RGB(255, 255, 255);
-#endif
-          texel.r *= light_contrib;
-          texel.g *= light_contrib;
-          texel.b *= light_contrib;
-          draw_pixel(target, texel);
         }
+#endif
+        texel.r *= light_contrib;
+        texel.g *= light_contrib;
+        texel.b *= light_contrib;
+        draw_pixel(target, texel);
       }
     }
   }
@@ -757,6 +881,10 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
   Vertex input[MAX_VERTEX_OUTPUT] = {0};
   Vertex output[MAX_VERTEX_OUTPUT] = {0};
   Vertex* clip_buffer[2] = { input, output };
+#ifndef NO_RENDER_COMMANDS
+  push_render_command((Render_command) { .type = RENDER_CMD_SET_LIGHT, .light = light, });
+  push_render_command((Render_command) { .type = RENDER_CMD_SET_TEXTURE, .texture = *texture, });
+#endif
 
   // proj * view * model * pos
   for (i32 i = 0; i < mesh->vertex_index_count; i += 3) {
@@ -883,7 +1011,21 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
       if (degenerate(a.x, a.y, b.x, b.y, c.x, c.y)) {
         continue;
       }
+#ifndef NO_RENDER_COMMANDS
+      Render_command cmd = (Render_command) {
+        .type = RENDER_CMD_DRAW_TRIANGLE,
+        .prim = {
+          .triangle = (Triangle) {
+            first, clipped[vertex_index], clipped[vertex_index + 1],
+          },
+          .world_normal = world_normal,
+          .world_position = pos,
+        },
+      };
+      push_render_command(cmd);
+#else
       render_triangle_advanced(first, clipped[vertex_index], clipped[vertex_index + 1], texture, world_normal, pos, light);
+#endif
     }
 
     if (RENDER_VERTICES) {
@@ -943,9 +1085,17 @@ void renderer_set_clear_color(Color color) {
 void renderer_begin_frame(f32 dt) {
   renderer.num_primitives = 0;
   renderer.num_primitives_culled = 0;
+  renderer.render_command_count = 0;
+  renderer.render_texture_count = 0;
   renderer.dt = dt;
 #ifdef VOXELGI
   voxelgi_update(&renderer.gi, dt);
+#endif
+}
+
+void renderer_draw(void) {
+#ifndef NO_RENDER_COMMANDS
+  process_render_commands();
 #endif
 }
 
@@ -1036,7 +1186,7 @@ void renderer_end_frame(void) {
 
 void renderer_clear(void) {
   memcpy(renderer.color_buffer, renderer.clear_buffer, sizeof(Color) * renderer.width * renderer.height);
-  memcpy(renderer.zbuffer, renderer.clear_zbuffer, sizeof(f32) * renderer.width * renderer.height);
+  memcpy(renderer.zbuffer_target, renderer.clear_zbuffer, sizeof(f32) * renderer.width * renderer.height);
   memcpy(&renderer.normal_buffer[0], &renderer.clear_normal_buffer[0], sizeof(Color) * renderer.width * renderer.height);
 }
 
@@ -1062,12 +1212,18 @@ void renderer_toggle_edge_detection(void) {
 
 void renderer_toggle_render_zbuffer(void) {
   renderer.render_zbuffer = !renderer.render_zbuffer;
+  renderer.render_normal_buffer &= !renderer.render_zbuffer;
 }
 
 void renderer_toggle_render_normal_buffer(void) {
   renderer.render_normal_buffer = !renderer.render_normal_buffer;
+  renderer.render_zbuffer &= !renderer.render_normal_buffer;
 }
 
 void renderer_toggle_render_voxels(void) {
   VOXELGI_RENDER_VOXELS = !VOXELGI_RENDER_VOXELS;
+}
+
+void renderer_toggle_texture_mapping(void) {
+  renderer.texture_mapping = !renderer.texture_mapping;
 }

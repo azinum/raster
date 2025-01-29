@@ -1,5 +1,9 @@
 // raster.c
 
+#ifndef NO_OMP
+  #include <omp.h>
+#endif
+
 #define STB_SPRINTF_IMPLEMENTATION
 #include "stb_sprintf.h"
 
@@ -141,6 +145,9 @@ void update_and_render(f32 dt) {
   if (input.key_pressed[KEY_F]) {
     window_toggle_fullscreen();
   }
+  if (input.key_pressed[KEY_T]) {
+    renderer_toggle_texture_mapping();
+  }
   if (input.key_down[KEY_W]) {
     camera.pos = V3_OP(
       camera.pos,
@@ -253,12 +260,13 @@ void update_and_render(f32 dt) {
     render_mesh(&cube, &t_brick_6, V3(2, sinf(game.timer * 0.8f) - 1.2f, -6), V3(size, size, size), V3(0, 0, 0), game.light);
   }
 
+  renderer_draw();
   renderer_post_process();
   {
     static char text[256] = {0};
     static size_t length = 0;
     if ((game.tick % 4) == 0) {
-      length = snprintf(text, sizeof(text), "%.3g ms\nlight (%.2g, %.2g, %.2g)\ncamera (%.2g, %.2g, %.2g)", 1000 * dt, EXPAND_V3(game.light.pos), EXPAND_V3(camera.pos));
+      length = snprintf(text, sizeof(text), "%.3g ms\nlight (%.2g, %.2g, %.2g)\ncamera (%.2g, %.2g, %.2g)\nprimitives: %d", 1000 * dt, EXPAND_V3(game.light.pos), EXPAND_V3(camera.pos), renderer_get_num_primitives());
     }
     render_text(text, length, 2, 2, 1, COLOR_RGB(130, 100, 255));
   }
