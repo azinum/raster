@@ -128,9 +128,6 @@ void update_and_render(f32 dt) {
   if (input.key_pressed[KEY_SPACE]) {
     game.paused = !game.paused;
   }
-  if (game.paused) {
-    return;
-  }
 
   f32 speed = 4.0f * game.time_scale;
   f32 light_adjust_speed = 2.0f ;
@@ -140,6 +137,9 @@ void update_and_render(f32 dt) {
     x_offset = random_f32() * 1000;
     y_offset = random_f32() * 1000;
     init();
+  }
+  if (input.key_pressed[KEY_F]) {
+    window_toggle_fullscreen();
   }
   if (input.key_down[KEY_W]) {
     camera.pos = V3_OP(
@@ -265,8 +265,10 @@ void update_and_render(f32 dt) {
   render_axis(V3(0, 0, 0));
   render_texture_3d(&t_sun_icon, game.light.pos, 24, 24, COLOR_RGB(255, 0, 255), COLOR_RGB(255, 255, 100));
   renderer_end_frame();
-  game.tick += 1;
-  game.timer += dt * game.time_scale;
+  if (!game.paused) {
+    game.tick += 1;
+    game.timer += dt * game.time_scale;
+  }
 }
 
 u32 display_get_width(void) {

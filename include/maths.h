@@ -16,6 +16,9 @@ typedef union v3 {
   struct {
     f32 pitch, yaw, roll;
   };
+#if USE_SSE
+  __m128 v;
+#endif
 } v3;
 
 typedef union v2 {
@@ -40,6 +43,9 @@ typedef union v4 {
   struct {
     f32 x1, y1, x2, y2;
   };
+#if USE_SSE
+  __m128 v;
+#endif
 } v4;
 
 typedef v3 Plane;

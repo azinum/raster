@@ -1,6 +1,10 @@
 // window_sdl.c
 
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_video.h>
+
+#define ASPECT_RATIO (WINDOW_WIDTH / (f32)WINDOW_HEIGHT)
+#define ASPECT_RATIO_INV (WINDOW_HEIGHT / (f32)WINDOW_WIDTH)
 
 // https://www.freepascal-meets-sdl.net/sdl-2-0-scancode-lookup-table/
 static const Key_event key_map[] = {
@@ -94,10 +98,11 @@ static const Key_event key_map[] = {
 const size_t KEY_MAP_SIZE = LENGTH(key_map);
 
 struct {
-  u32 width;
-  u32 height;
+  i32 width;
+  i32 height;
   u32 raster_width;
   u32 raster_height;
+  bool fullscreen;
   SDL_Texture* display_texture;
   SDL_Window* window;
   SDL_Renderer* renderer;
@@ -126,13 +131,14 @@ Result window_create() {
   window.height = WINDOW_HEIGHT;
   window.raster_width = display_get_width();
   window.raster_height = display_get_height();
+  window.fullscreen = false;
   window.window = SDL_CreateWindow(
     "",
     SDL_WINDOWPOS_CENTERED,
     SDL_WINDOWPOS_CENTERED,
     window.width,
     window.height,
-    0
+    SDL_WINDOW_OPENGL | window.fullscreen * SDL_WINDOW_FULLSCREEN_DESKTOP
   );
   sdl_check_pointer(window.window);
 
@@ -151,6 +157,11 @@ Result window_create() {
     window.raster_height
   );
   sdl_check_pointer(window.display_texture);
+#if 0
+  struct SDL_RendererInfo info;
+  SDL_GetRendererInfo(window.renderer, &info);
+  printf("using renderer: %s\n", info.name);
+#endif
   return Ok;
 }
 
@@ -159,9 +170,16 @@ void window_set_title(char* title) {
 }
 
 void window_render() {
+  SDL_GetWindowSize(window.window, &window.width, &window.height);
+
+  f32 w_aspect = window.width / (f32)window.raster_width;
+  f32 h_aspect = window.height / (f32)window.raster_height;
+  f32 aspect = w_aspect / h_aspect;
+  f32 aspect_inv = h_aspect / w_aspect;
+
   Color* color_buffer = display_get_addr();
   const SDL_Rect display_rect = {
-    0, 0, window.width, window.height
+    (1-aspect_inv) * window.width*0.5f, 0, window.width * aspect_inv, window.height
   };
   const SDL_Rect raster_rect = {
     0, 0, window.raster_width, window.raster_height
@@ -182,7 +200,7 @@ void window_render() {
   SDL_RenderCopy(
     window.renderer,
     window.display_texture,
-    &display_rect,
+    &raster_rect,
     &display_rect
   );
   SDL_RenderPresent(window.renderer);
@@ -244,4 +262,16 @@ void window_destroy() {
   SDL_DestroyWindow(window.window);
   SDL_DestroyRenderer(window.renderer);
   SDL_Quit();
+}
+
+void window_toggle_fullscreen(void) {
+  window.fullscreen = !window.fullscreen;
+  if (window.fullscreen) {
+    SDL_SetWindowFullscreen(window.window, SDL_WINDOW_FULLSCREEN_DESKTOP);
+  }
+  else {
+    SDL_SetWindowFullscreen(window.window, 0);
+  }
+
+  SDL_GetWindowSize(window.window, &window.width, &window.height);
 }

@@ -68,4 +68,16 @@ void input_mouse_left_click(i32 x, i32 y);
 void input_mouse_left_release(i32 x, i32 y);
 void input_mouse_move(i32 x, i32 y);
 
+#ifndef TARGET_WASM
+extern Result window_create();
+extern void window_set_title(char* title);
+extern void window_render();
+extern Result window_poll_events();
+extern size_t window_get_ticks();
+extern size_t window_get_freq();
+extern void window_destroy();
+#endif
+
+extern void window_toggle_fullscreen(void);
+
 #endif // _WINDOW_H

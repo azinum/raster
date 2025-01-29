@@ -173,6 +173,7 @@ function updateDebugInfo(wasm, elem, dt) {
 			floorf: Math.floor,
 			roundf: Math.round,
 			time: Date.now,
+			window_toggle_fullscreen: fullscreen
 		}
 	})
 	.then(obj => {
@@ -210,9 +211,9 @@ function updateDebugInfo(wasm, elem, dt) {
 			}
 			if (e.which >= 32 && e.which <= 90) {
 				events.push({ code: keyMap[e.which - 32], type: KEY_EVENT_DOWN });
-				if (keyMap[e.which - 32] == KEY_F) {
-					fullscreen();
-				}
+				// if (keyMap[e.which - 32] == KEY_F) {
+				// 	fullscreen();
+				// }
 			}
 		});
 		document.addEventListener("keyup", e => {
