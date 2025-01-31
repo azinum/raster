@@ -6,14 +6,18 @@
 // #define NO_TEXTURES
 // #define VOXELGI
 // #define NO_RENDER_COMMANDS
+// #define NO_NORMAL_BUFFER
 
 #define BB_COLOR COLOR_RGBA(255, 255, 255, 150)
 
 #define MAX_RENDER_COMMANDS (1024*4)
 #define MAX_RENDER_TEXTURES (8)
 
+#ifdef VOXELGI
 static Vsample voxelgi_samples[VOXELGI_VOXEL_COUNT] = {0};
+#endif
 
+#ifndef NO_RENDER_COMMANDS
 typedef enum Render_command_type {
   RENDER_CMD_DRAW_TRIANGLE,
   RENDER_CMD_SET_TEXTURE,
@@ -37,7 +41,9 @@ typedef struct Render_command {
     Texture texture;
     Light light;
   };
-} Render_command;
+} __attribute__((aligned(CACHELINESIZE))) Render_command;
+
+#endif
 
 typedef struct Renderer {
   Color* target;
@@ -62,10 +68,12 @@ typedef struct Renderer {
   bool depth_test;
   bool texture_mapping;
 
+#ifndef NO_RENDER_COMMANDS
   Render_command render_commands[MAX_RENDER_COMMANDS];
   size_t render_command_count;
   Texture textures[MAX_RENDER_TEXTURES];
   size_t render_texture_count;
+#endif
 
 #ifdef VOXELGI
   Voxelgi gi;
@@ -92,9 +100,12 @@ static v2 v2_cartesian(v2 a, v2 b, v2 c, f32 w1, f32 w2, f32 w3);
 static bool degenerate(i32 x1, i32 y1, i32 x2, i32 y2, i32 x3, i32 y3);
 static u8 trivial_reject(f32 x, f32 y, const f32 x_min, const f32 x_max, const f32 y_min, const f32 y_max);
 static i32 clip_vertices(Vertex* input, Vertex* output, i32 count, v3 plane_pos, v3 plane_normal);
+
+#ifndef NO_RENDER_COMMANDS
 static void push_render_command(Render_command cmd);
 static void push_render_command_simple(Render_command_type cmd_type);
 static void process_render_commands(void);
+#endif // NO_RENDER_COMMANDS
 
 inline Color* get_pixel_addr(i32 x, i32 y) {
 #ifndef DEBUG_OUT_OF_BOUNDS
@@ -290,6 +301,7 @@ i32 clip_vertices(Vertex* input, Vertex* output, i32 count, v3 plane_pos, v3 pla
   return output_count;
 }
 
+#ifndef NO_RENDER_COMMANDS
 void push_render_command(Render_command cmd) {
   if (renderer.render_command_count < MAX_RENDER_COMMANDS) {
     renderer.render_commands[renderer.render_command_count++] = cmd;
@@ -353,6 +365,8 @@ void process_render_commands(void) {
   }
 }
 
+#endif // NO_RENDER_COMMANDS
+
 void renderer_init(Color* color_buffer, Color* clear_buffer, u32 width, u32 height) {
   renderer.color_buffer = color_buffer;
   renderer.clear_buffer = clear_buffer;
@@ -371,8 +385,10 @@ void renderer_init(Color* color_buffer, Color* clear_buffer, u32 width, u32 heig
   renderer.dt = 0;
   renderer.depth_test = true;
   renderer.texture_mapping = true;
+#ifndef NO_RENDER_COMMANDS
   renderer.render_command_count = 0;
   renderer.render_texture_count = 0;
+#endif
 
   for (i32 i = 0; i < width * height; ++i) {
     renderer.clear_zbuffer[i] = 1.0f;
@@ -671,11 +687,13 @@ void render_triangle_advanced(Vertex a, Vertex b, Vertex c, const Texture* textu
           f32 z = (a.p.z * w1) + (b.p.z * w2) + (c.p.z * w3);
           if (z < *zvalue) {
             *zvalue = z;
+#ifndef NO_NORMAL_BUFFER
             renderer.normal_buffer[y * renderer.width + x] = COLOR_RGB(
               UINT8_MAX * (1 + world_normal.x) * 0.5f,
               UINT8_MAX * (1 + world_normal.y) * 0.5f,
               UINT8_MAX * (1 + world_normal.z) * 0.5f
             );
+#endif
           }
           else {
             continue;
@@ -865,6 +883,9 @@ void render_axis(v3 origin) {
   render_line_3d(origin, V3_OP(origin, V3(0, 0, 1), +), COLOR_RGB(0, 0, 255));
 }
 
+// TODO: bb and early cull
+// TODO: bvh?
+// TODO: view frustum culling/clipping in actual clip space, not in NDC
 void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation, Light light) {
   m4 model = translate(position);
 
@@ -938,11 +959,6 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
     v3 line2 = v3_sub(vt[2], vt[0]);
     v3 view_normal = v3_normalize(v3_cross(line1, line2));
 
-    const f32 x_min = -1.0f;
-    const f32 x_max =  1.0f;
-    const f32 y_min = -1.0f;
-    const f32 y_max =  1.0f;
-
     // ndc
     vt[0] = v3_div_scalar(vt[0], vt[0].w);
     vt[1] = v3_div_scalar(vt[1], vt[1].w);
@@ -951,7 +967,6 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
     // view frustum clipping
     i32 clip_buffer_index = 0;
     i32 output_count = 3;
-    i32 current = 0;
 
     // prepare input vertices
     for (i32 input_index = 0; input_index < 3; ++input_index) {
@@ -1085,8 +1100,10 @@ void renderer_set_clear_color(Color color) {
 void renderer_begin_frame(f32 dt) {
   renderer.num_primitives = 0;
   renderer.num_primitives_culled = 0;
+#ifndef NO_RENDER_COMMANDS
   renderer.render_command_count = 0;
   renderer.render_texture_count = 0;
+#endif
   renderer.dt = dt;
 #ifdef VOXELGI
   voxelgi_update(&renderer.gi, dt);
@@ -1100,6 +1117,7 @@ void renderer_draw(void) {
 }
 
 void renderer_post_process(void) {
+#ifndef NO_NORMAL_BUFFER
   if (renderer.edge_detection) {
     f32 normalization_factor = 1.0f / UINT8_MAX;
     for (i32 y = 0; y < renderer.height; ++y) {
@@ -1130,6 +1148,7 @@ void renderer_post_process(void) {
       }
     }
   }
+#endif
 
   if (renderer.fog) {
     Color fog_color = FOG_COLOR; // COLOR_RGB(210, 210, 230);
@@ -1170,6 +1189,7 @@ void renderer_end_frame(void) {
       }
     }
   }
+#ifndef NO_NORMAL_BUFFER
   else if (renderer.render_normal_buffer) {
     for (i32 y = 0; y < renderer.height; ++y) {
       for (i32 x = 0; x < renderer.width; ++x) {
@@ -1179,6 +1199,8 @@ void renderer_end_frame(void) {
       }
     }
   }
+#endif
+
 #ifdef VOXELGI
   voxelgi_render(&renderer.gi);
 #endif
@@ -1187,7 +1209,9 @@ void renderer_end_frame(void) {
 void renderer_clear(void) {
   memcpy(renderer.color_buffer, renderer.clear_buffer, sizeof(Color) * renderer.width * renderer.height);
   memcpy(renderer.zbuffer_target, renderer.clear_zbuffer, sizeof(f32) * renderer.width * renderer.height);
+#ifndef NO_NORMAL_BUFFER
   memcpy(&renderer.normal_buffer[0], &renderer.clear_normal_buffer[0], sizeof(Color) * renderer.width * renderer.height);
+#endif
 }
 
 i32 renderer_get_num_primitives(void) {
@@ -1206,8 +1230,8 @@ void renderer_toggle_dither(void) {
   renderer.dither = !renderer.dither;
 }
 
-void renderer_toggle_edge_detection(void) {
-  renderer.edge_detection = !renderer.edge_detection;
+void renderer_toggle_depth_test(void) {
+  renderer.depth_test = !renderer.depth_test;
 }
 
 void renderer_toggle_render_zbuffer(void) {

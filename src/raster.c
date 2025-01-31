@@ -24,7 +24,9 @@
 #include "mesh.h"
 #include "assets.h"
 #include "light.h"
-#include "voxelgi.h"
+#ifdef VOXELGI
+  #include "voxelgi.h"
+#endif
 #include "renderer.h"
 #include "window.h"
 
@@ -34,7 +36,9 @@
 #include "camera.c"
 #include "mesh.c"
 #include "light.c"
-#include "voxelgi.c"
+#ifdef VOXELGI
+  #include "voxelgi.c"
+#endif
 #include "renderer.c"
 #include "window.c"
 
@@ -45,6 +49,8 @@ typedef struct Game {
   f32 time_scale;
   bool paused;
   bool running;
+  f32 dt_min;
+  f32 dt_max;
 } Game;
 
 Game game = {
@@ -54,15 +60,16 @@ Game game = {
   .time_scale = 1.0f,
   .paused = false,
   .running = true,
+  .dt_min = 10000,
+  .dt_max = 0,
 };
 
 Color BUFFER[WINDOW_WIDTH * WINDOW_HEIGHT] = {0};
 Color CLEAR_BUFFER[WINDOW_WIDTH * WINDOW_HEIGHT] = {0};
 
-static f32 x_offset = 0;
-static f32 y_offset = 0;
-
+#ifdef NO_TIMER
 extern i32 time();
+#endif
 
 const i32 EVENT_TYPE_DOWN = 0;
 const i32 EVENT_TYPE_UP = 1;
@@ -78,6 +85,8 @@ void init(void) {
   camera.rotation.pitch = 0;
   camera_update();
   game.light = light_create(V3(0, 2.5f, -4.5f), 2.0f, 1.5f);
+  game.dt_min = 1;
+  game.dt_max = 0;
 }
 
 i32 raster_main(i32 argc, char** argv) {
@@ -95,7 +104,7 @@ i32 raster_main(i32 argc, char** argv) {
       dt = dt * !(dt > DT_MAX);
       update_and_render(dt);
       window_render();
-      snprintf(title, MAX_TITLE_LEN, "Raster | %g fps | %.4f dt", (1.0f / dt), dt);
+      snprintf(title, MAX_TITLE_LEN, "Raster | %g fps (%g/%g) | %.4f dt", (1.0f / dt), 1/game.dt_min, 1/game.dt_max, dt);
       window_set_title(title);
       clear_input_events();
     }
@@ -127,7 +136,18 @@ void input_event(i32 code, i32 type) {
 }
 
 void update_and_render(f32 dt) {
+  static size_t wait_ticks = 0;
+  wait_ticks += 1;
+  if (wait_ticks > 100) {
+    if (dt < game.dt_min) {
+      game.dt_min = dt;
+    }
+    if (dt > game.dt_max) {
+      game.dt_max = dt;
+    }
+  }
   dt = CLAMP(dt, DT_MIN, DT_MAX);
+
   i32 fps = (i32)(1.0f / dt);
   if (input.key_pressed[KEY_SPACE]) {
     game.paused = !game.paused;
@@ -138,8 +158,6 @@ void update_and_render(f32 dt) {
   f32 rotation_speed = 150.0f * game.time_scale;
   if (input.key_pressed[KEY_R]) {
     game.timer = 0;
-    x_offset = random_f32() * 1000;
-    y_offset = random_f32() * 1000;
     init();
   }
   if (input.key_pressed[KEY_F]) {
@@ -228,7 +246,7 @@ void update_and_render(f32 dt) {
     renderer_toggle_fog();
   }
   if (input.key_pressed[KEY_8]) {
-    renderer_toggle_edge_detection();
+    renderer_toggle_depth_test();
   }
   if (input.key_pressed[KEY_9]) {
     renderer_toggle_render_zbuffer();
@@ -260,18 +278,20 @@ void update_and_render(f32 dt) {
     render_mesh(&cube, &t_brick_6, V3(2, sinf(game.timer * 0.8f) - 1.2f, -6), V3(size, size, size), V3(0, 0, 0), game.light);
   }
 
+  TIMER_START();
   renderer_draw();
+  f32 time_to_render = TIMER_END();
   renderer_post_process();
   {
     static char text[256] = {0};
     static size_t length = 0;
     if ((game.tick % 4) == 0) {
-      length = snprintf(text, sizeof(text), "%.3g ms\nlight (%.2g, %.2g, %.2g)\ncamera (%.2g, %.2g, %.2g)\nprimitives: %d", 1000 * dt, EXPAND_V3(game.light.pos), EXPAND_V3(camera.pos), renderer_get_num_primitives());
+      length = snprintf(text, sizeof(text), "%.3g ms\nprimitives: %d\n%g ms", 1000 * dt, renderer_get_num_primitives(), time_to_render * 1000);
     }
     render_text(text, length, 2, 2, 1, COLOR_RGB(130, 100, 255));
   }
-  render_axis(V3(0, 0, 0));
-  render_texture_3d(&t_sun_icon, game.light.pos, 24, 24, COLOR_RGB(255, 0, 255), COLOR_RGB(255, 255, 100));
+  // render_axis(V3(0, 0, 0));
+  // render_texture_3d(&t_sun_icon, game.light.pos, 24, 24, COLOR_RGB(255, 0, 255), COLOR_RGB(255, 255, 100));
   renderer_end_frame();
   if (!game.paused) {
     game.tick += 1;

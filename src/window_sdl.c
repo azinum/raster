@@ -175,6 +175,7 @@ void window_render() {
   f32 w_aspect = window.width / (f32)window.raster_width;
   f32 h_aspect = window.height / (f32)window.raster_height;
   f32 aspect = w_aspect / h_aspect;
+  (void)aspect; // unused
   f32 aspect_inv = h_aspect / w_aspect;
 
   Color* color_buffer = display_get_addr();

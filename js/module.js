@@ -153,12 +153,6 @@ function fullscreen() {
 	}
 }
 
-function updateDebugInfo(wasm, elem, dt) {
-	elem.textContent =
-		wasm.instance.exports.renderer_get_num_primitives() + "/" + wasm.instance.exports.renderer_get_num_primitives_culled() + " primitives | " +
-		(dt * 1000).toFixed(2) + " ms | " + wasm.instance.exports.display_get_width() + "x" + wasm.instance.exports.display_get_height();
-}
-
 (async function init() {
 	WebAssembly.instantiateStreaming(fetch("raster.wasm"), {
 		env: {
@@ -195,14 +189,6 @@ function updateDebugInfo(wasm, elem, dt) {
 		options.rasterHeight = height;
 		options.displayWidth = canvas.clientWidth;
 		options.displayHeight = canvas.clientHeight;
-		canvas.addEventListener("mousedown", e => {
-			options.displayWidth = canvas.clientWidth;
-			options.displayHeight = canvas.clientHeight;
-			let xFactor = options.rasterWidth / options.displayWidth;
-			let yFactor = options.rasterHeight / options.displayHeight;
-			instance.exports.mouse_click(e.offsetX * xFactor, e.offsetY * yFactor);
-		});
-
 		let events = [];
 
 		document.addEventListener("keydown", e => {
@@ -211,9 +197,6 @@ function updateDebugInfo(wasm, elem, dt) {
 			}
 			if (e.which >= 32 && e.which <= 90) {
 				events.push({ code: keyMap[e.which - 32], type: KEY_EVENT_DOWN });
-				// if (keyMap[e.which - 32] == KEY_F) {
-				// 	fullscreen();
-				// }
 			}
 		});
 		document.addEventListener("keyup", e => {
@@ -224,8 +207,25 @@ function updateDebugInfo(wasm, elem, dt) {
 				events.push({ code: keyMap[e.which - 32], type: KEY_EVENT_UP });
 			}
 		});
+		canvas.addEventListener("mousemove", e => {
+			const bounds = e.target.getBoundingClientRect();
+			let x = e.clientX - bounds.left;
+			let y = e.clientY - bounds.top;
+			wasm.instance.exports.input_mouse_move(x, y);
+		});
+		canvas.addEventListener("mousedown", e => {
+			const bounds = e.target.getBoundingClientRect();
+			let x = e.clientX - bounds.left;
+			let y = e.clientY - bounds.top;
+			instance.exports.input_mouse_left_click(x, y);
 
-		const debugTextElem = document.getElementById("debug-info");
+		});
+		canvas.addEventListener("mouseup", e => {
+			const bounds = e.target.getBoundingClientRect();
+			let x = e.clientX - bounds.left;
+			let y = e.clientY - bounds.top;
+			instance.exports.input_mouse_left_release(x, y);
+		});
 
 		function processInputEvents() {
 			for (let i = 0; i < events.length; ++i) {
@@ -237,7 +237,6 @@ function updateDebugInfo(wasm, elem, dt) {
 
 		let prevTime = 0;
 		let currentTime = performance.now();
-		let ticks = 0;
 		function frame_step(timestamp) {
 			prevTime = currentTime;
 			currentTime = performance.now();
@@ -255,10 +254,6 @@ function updateDebugInfo(wasm, elem, dt) {
 				width, height
 			);
 			context.putImageData(frame, 0, 0);
-			ticks += 1;
-			if (!(ticks % 2)) {
-				updateDebugInfo(wasm, debugTextElem, dt);
-			}
 			window.requestAnimationFrame(frame_step);
 		}
 		window.requestAnimationFrame(frame_step);

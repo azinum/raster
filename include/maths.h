@@ -5,22 +5,6 @@
 
 #define PI32 3.14159265359f
 
-// NOTE(lucas): added extra component `w` for convenience
-typedef union v3 {
-  struct {
-    f32 x, y, z, w;
-  };
-  struct {
-    f32 r, g, b, a;
-  };
-  struct {
-    f32 pitch, yaw, roll;
-  };
-#if USE_SSE
-  __m128 v;
-#endif
-} v3;
-
 typedef union v2 {
   struct {
     f32 x, y;
@@ -33,6 +17,32 @@ typedef union v2 {
   };
 } v2;
 
+// NOTE(lucas): added extra component `w` for convenience, and also alignment
+typedef union v3 {
+  struct {
+    f32 x, y, z, w;
+  };
+  struct {
+    f32 r, g, b, a;
+  };
+  struct {
+    f32 pitch, yaw, roll;
+  };
+  // swizzling
+  struct {
+    v2 xy;
+    v2 zw;
+  };
+  struct {
+    f32 _;
+    v2 yz;
+  };
+#if USE_SSE
+  __m128 v;
+#endif
+} v3;
+
+// TODO: make v4 an alias of v3
 typedef union v4 {
   struct {
     f32 x, y, z, w;
@@ -53,11 +63,12 @@ typedef v3 Plane;
 typedef union m4 {
   f32 e[4][4];
 #if USE_SSE
+  // TODO: arm NEON SIMD support
   __m128 rows[4];
 #endif
 } m4;
 
-#define V3(X, Y, Z) ((v3) { .x = (X), .y = (Y), .z = (Z) })
+#define V3(X, Y, Z) ((v3) { .x = (X), .y = (Y), .z = (Z), })
 #define V3_OP(A, B, OP) V3((A).x OP (B).x, (A).y OP (B).y, (A).z OP (B).z)
 #define V3_OP1(A, B, OP) V3((A).x OP (B), (A).y OP (B), (A).z OP (B))
 #define OP(A, OPERATOR, B) (V3_OP(A, B, OPERATOR))
@@ -67,8 +78,9 @@ typedef union m4 {
 #define V2_OP(A, B, OP) V2((A).x OP (B).x, (A).y OP (B).y)
 #define V2_OP1(A, B, OP) V2((A).x OP (B), (A).y OP (B))
 
-#define v2_zero V2(0, 0)
-#define v3_zero V3(0, 0, 0)
+extern v2 v2_zero;
+extern v3 v3_zero;
+extern v4 v4_zero;
 
 #define SIGN(T, x) ((T)((x) > 0) - (T)((x) < 0))
 #define ABS(T, x) (T)(SIGN(T, x) * (x))
@@ -78,7 +90,13 @@ typedef union m4 {
 
 #define SWAP(T, a, b) do { T t = a; a = b; b = t; } while (0)
 
-#define EXPAND_V3(A) A.x, A.y, A.z
+#define M4_EXPAND_COL(M, COL) M.e[COL][0], M.e[COL][1], M.e[COL][2], M.e[COL][3]
+#define M4_EXPAND_ROW(M, ROW) M.e[0][ROW], M.e[1][ROW], M.e[2][ROW], M.e[3][ROW]
+#define M4_EXPAND(M) M4_EXPAND_ROW(M, 0), M4_EXPAND_ROW(M, 1), M4_EXPAND_ROW(M, 2), M4_EXPAND_ROW(M, 3)
+#define V2_EXPAND(A) A.x, A.y
+#define V3_EXPAND(A) A.x, A.y, A.z
+#define V4_EXPAND(A) A.x, A.y, A.z, A.w
+
 #define EPS 1e-6
 
 #ifdef NO_MATH

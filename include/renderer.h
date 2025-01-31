@@ -115,7 +115,7 @@ i32 renderer_get_num_primitives(void);
 i32 renderer_get_num_primitives_culled(void);
 void renderer_toggle_fog(void);
 void renderer_toggle_dither(void);
-void renderer_toggle_edge_detection(void);
+void renderer_toggle_depth_test(void);
 void renderer_toggle_render_zbuffer(void);
 void renderer_toggle_render_normal_buffer(void);
 void renderer_toggle_render_voxels(void);

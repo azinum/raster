@@ -1,5 +1,9 @@
 // maths.c
 
+v2 v2_zero = (v2) { .x = 0, .y = 0, };
+v3 v3_zero = (v3) { .x = 0, .y = 0, .z = 0, .w = 0, };
+v4 v4_zero = (v4) { .x = 0, .y = 0, .z = 0, .w = 0, };
+
 inline f32 sigmoid(f32 x) {
   return (0.5f / (0.5f + expf(-x)));
 }
@@ -105,12 +109,12 @@ inline v3 v3_sub(v3 a, v3 b) {
 
 inline v3 v3_div_scalar(v3 a, f32 b) {
   if (b != 0) {
-    return (v3) {
+    return (v3) {{
       a.x / b,
       a.y / b,
       a.z / b,
-      a.w
-    };
+      a.w,
+    }};
   }
   return a;
 }
