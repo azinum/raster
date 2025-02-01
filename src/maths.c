@@ -54,7 +54,12 @@ inline m4 m4d(float value) {
 }
 
 inline f32 v3_dot(v3 a, v3 b) {
+#ifdef USE_SSE
+  a.v = _mm_mul_ps(a.v, b.v);
+  return a.x + a.y + a.z;
+#else
   return (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
+#endif
 }
 
 inline v3 v3_cross(v3 a, v3 b) {
@@ -147,11 +152,23 @@ inline v2 v2_lerp(v2 a, v2 b, f32 t) {
 }
 
 inline v3 v3_lerp(v3 a, v3 b, f32 t) {
+#ifdef USE_SSE
+  v3 result;
+  result.v = _mm_add_ps(
+    _mm_mul_ps(
+      _mm_set1_ps(t),
+      _mm_sub_ps(b.v, a.v)
+    ),
+    a.v
+  );
+  return result;
+#else
   return V3(
     f32_lerp(a.x, b.x, t),
     f32_lerp(a.y, b.y, t),
     f32_lerp(a.z, b.z, t)
   );
+#endif
 }
 
 inline f32 radians(f32 angle) {
@@ -160,7 +177,7 @@ inline f32 radians(f32 angle) {
 
 inline f32 square_root(f32 a) {
   f32 result = 0;
-#if USE_SSE
+#ifdef USE_SSE
   result = _mm_cvtss_f32(_mm_sqrt_ss(_mm_set_ss(a)));
 #else
   result = sqrtf(a);
@@ -183,7 +200,7 @@ inline v3 m4_multiply_v3(m4 m, v3 a) {
 inline m4 m4_multiply(m4 a, m4 b) {
   m4 result = {0};
 
-#if USE_SSE
+#ifdef USE_SSE
   m4 left = transpose(a);
   m4 right = transpose(b);
 
@@ -210,7 +227,7 @@ inline m4 m4_multiply(m4 a, m4 b) {
 inline m4 rotate(f32 angle, v3 axis) {
   m4 result = m4d(1.0f);
 
-  axis = v3_normalize(axis);
+  axis = v3_normalize_fast(axis);
 
   f32 sin_theta = sinf(radians(angle));
   f32 cos_theta = cosf(radians(angle));
@@ -284,9 +301,9 @@ inline m4 perspective(f32 fov, f32 aspect, f32 z_near, f32 z_far) {
 inline m4 look_at(v3 eye, v3 center, v3 up) {
 	m4 result = m4d(1.0f);
 
-	v3 front = v3_normalize(V3_OP(center, eye, -));
-	v3 side = v3_normalize(v3_cross(front, up));
-	v3 u = v3_normalize(v3_cross(side, front));
+	v3 front = v3_normalize_fast(V3_OP(center, eye, -));
+	v3 side = v3_normalize_fast(v3_cross(front, up));
+	v3 u = v3_normalize_fast(v3_cross(side, front));
 
 	result.e[0][0] = side.x;
 	result.e[0][1] = u.x;
@@ -336,7 +353,7 @@ inline f32 point_to_plane_distance(v3 plane_pos, v3 plane_normal, v3 p) {
 }
 
 inline v3 plane_from_pos_and_normal(v3 pos, v3 normal) {
-  normal = v3_normalize(normal);
+  normal = v3_normalize_fast(normal);
   return (v3) {
     normal.x,
     normal.y,
@@ -357,7 +374,7 @@ inline v3 project_to_screen(v3 p, i32 width, i32 height) {
   return p;
 }
 
-#if USE_SSE
+#ifdef USE_SSE
 
 inline m4 transpose(m4 a) {
   m4 result = a;

@@ -37,7 +37,7 @@ typedef union v3 {
     f32 _;
     v2 yz;
   };
-#if USE_SSE
+#ifdef USE_SSE
   __m128 v;
 #endif
 } v3;
@@ -53,7 +53,7 @@ typedef union v4 {
   struct {
     f32 x1, y1, x2, y2;
   };
-#if USE_SSE
+#ifdef USE_SSE
   __m128 v;
 #endif
 } v4;
@@ -62,7 +62,7 @@ typedef v3 Plane;
 
 typedef union m4 {
   f32 e[4][4];
-#if USE_SSE
+#ifdef USE_SSE
   // TODO: arm NEON SIMD support
   __m128 rows[4];
 #endif
@@ -151,7 +151,7 @@ extern v3 plane_from_pos_and_normal(v3 pos, v3 normal);
 extern bool point_behind_plane(v3 pos, v3 plane);
 extern v3 project_to_screen(v3 p, i32 width, i32 height);
 
-#if USE_SSE
+#ifdef USE_SSE
 
 extern m4 transpose(m4 a);
 extern __m128 linear_combine(__m128 left, m4 right);

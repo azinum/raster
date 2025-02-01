@@ -20,11 +20,11 @@ typedef Color32 Color;
 
 typedef struct Texture {
   Color* data;
-  i32 width;
-  i32 height;
+  u32 width;
+  u32 height;
 } Texture;
 
 Color texture_get_pixel(const Texture* const texture, const i32 x, const i32 y);
-Color texture_get_pixel_wrapped(const Texture* const texture, const i32 x, const i32 y);
+Color texture_get_pixel_wrapped(const Texture* const texture, const u32 x, const u32 y);
 
 #endif // _TEXTURE_H

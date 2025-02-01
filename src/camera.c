@@ -18,19 +18,10 @@ void camera_update(void) {
     sinf(radians(camera.rotation.pitch)),
     sinf(radians(camera.rotation.yaw)) * cosf(radians(camera.rotation.pitch))
   );
-#if 0
-  camera.forward = v3_normalize(dir);
-  camera.right = v3_normalize(v3_cross(WORLD_UP, camera.forward));
-  camera.up = v3_normalize(v3_cross(camera.forward, camera.right));
+  camera.forward = v3_normalize_fast(dir);
+  camera.right = v3_normalize_fast(v3_cross(WORLD_UP, camera.forward));
+  camera.up = v3_normalize_fast(v3_cross(camera.right, camera.forward));
 
   v3 center = V3_OP(camera.pos, camera.forward, +);
   view = look_at(camera.pos, center, camera.up);
-#else
-  camera.forward = v3_normalize(dir);
-  camera.right = v3_normalize(v3_cross(WORLD_UP, camera.forward));
-  camera.up = v3_normalize(v3_cross(camera.right, camera.forward));
-
-  v3 center = V3_OP(camera.pos, camera.forward, +);
-  view = look_at(camera.pos, center, camera.up);
-#endif
 }

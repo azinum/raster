@@ -138,7 +138,7 @@ void input_event(i32 code, i32 type) {
 void update_and_render(f32 dt) {
   static size_t wait_ticks = 0;
   wait_ticks += 1;
-  if (wait_ticks > 100) {
+  if (wait_ticks > 30) {
     if (dt < game.dt_min) {
       game.dt_min = dt;
     }

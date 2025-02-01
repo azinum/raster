@@ -176,7 +176,7 @@ void window_render() {
   f32 h_aspect = window.height / (f32)window.raster_height;
   f32 aspect = w_aspect / h_aspect;
   (void)aspect; // unused
-  f32 aspect_inv = h_aspect / w_aspect;
+  f32 aspect_inv = MAX(h_aspect / w_aspect, 0);
 
   Color* color_buffer = display_get_addr();
   const SDL_Rect display_rect = {

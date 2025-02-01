@@ -2,7 +2,7 @@
 
 set -xe
 
-OPT=-O2
+OPT=-O3
 clang \
 	${OPT} \
 	--target=wasm32 \
@@ -34,14 +34,14 @@ clang \
 	-ffast-math \
 	-Wall \
 	-Wno-missing-braces \
+	-fopenmp=libomp \
 	-Iinclude \
 	-Ideps/common.h \
 	src/main.c \
 	-o raster \
 	`pkg-config --libs --cflags sdl2` \
 	-lm \
-	-DNO_OMP \
 	-DNO_NORMAL_BUFFER \
-	&& strip raster
-
-# wasm2wat raster.wasm -o raster.wat
+	-DNO_SIMD \
+	&& \
+	strip raster

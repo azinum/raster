@@ -5,10 +5,10 @@
 
 #define DEBUG_OUT_OF_BOUNDS
 
-#define RASTER_WIDTH      320
-#define RASTER_HEIGHT     240
-#define WINDOW_WIDTH      RASTER_WIDTH  * 3
-#define WINDOW_HEIGHT     RASTER_HEIGHT * 3
+#define RASTER_WIDTH      (320)
+#define RASTER_HEIGHT     (240)
+#define WINDOW_WIDTH      (800)
+#define WINDOW_HEIGHT     (600)
 const v3 WORLD_UP         = V3(0, 1, 0);
 f32 LIGHT_AMBIENCE        = 1.0f / (f32)UINT8_MAX;
 f32 CAMERA_ZFAR           = 35.0f;

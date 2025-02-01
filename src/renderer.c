@@ -33,13 +33,14 @@ typedef enum Render_command_type {
 typedef struct Render_command {
   Render_command_type type;
   union {
+    // TODO: add id mapping to texture and lights
     struct {
       Triangle triangle;
       v3 world_normal;
       v3 world_position;
+      Texture texture;
+      Light light;
     } prim;
-    Texture texture;
-    Light light;
   };
 } __attribute__((aligned(CACHELINESIZE))) Render_command;
 
@@ -102,7 +103,7 @@ static u8 trivial_reject(f32 x, f32 y, const f32 x_min, const f32 x_max, const f
 static i32 clip_vertices(Vertex* input, Vertex* output, i32 count, v3 plane_pos, v3 plane_normal);
 
 #ifndef NO_RENDER_COMMANDS
-static void push_render_command(Render_command cmd);
+static void push_render_command(const Render_command* cmd);
 static void push_render_command_simple(Render_command_type cmd_type);
 static void process_render_commands(void);
 #endif // NO_RENDER_COMMANDS
@@ -283,7 +284,7 @@ i32 clip_vertices(Vertex* input, Vertex* output, i32 count, v3 plane_pos, v3 pla
     f32 t = 0;
     line_plane_intersection(plane_pos, plane_normal, a.p, b.p, &t);
 
-    c.p = v3_lerp(a.p, b.p, t);
+    c.p  = v3_lerp(a.p, b.p, t);
     c.wp = v3_lerp(a.wp, b.wp, t);
     c.uv = v2_lerp(a.uv, b.uv, t);
 
@@ -302,9 +303,10 @@ i32 clip_vertices(Vertex* input, Vertex* output, i32 count, v3 plane_pos, v3 pla
 }
 
 #ifndef NO_RENDER_COMMANDS
-void push_render_command(Render_command cmd) {
+void push_render_command(const Render_command* cmd) {
+  ASSERT(cmd);
   if (renderer.render_command_count < MAX_RENDER_COMMANDS) {
-    renderer.render_commands[renderer.render_command_count++] = cmd;
+    renderer.render_commands[renderer.render_command_count++] = *cmd;
   }
 }
 
@@ -318,26 +320,26 @@ void push_render_command_simple(Render_command_type cmd_type) {
 }
 
 void process_render_commands(void) {
-  Light light = light_create(V3(0, 0, 0), 0, 0);
-  Texture current_texture;
-
   i32 i = 0;
+
+  #pragma omp parallel for
   for (i = 0; i < renderer.render_command_count; ++i) {
     Render_command* cmd = &renderer.render_commands[i];
     switch (cmd->type) {
       case RENDER_CMD_DRAW_TRIANGLE: {
-        Texture* texture = &current_texture;
+        Texture* texture = &cmd->prim.texture;
         Triangle* t = &cmd->prim.triangle;
         if (texture->data) {
-          render_triangle_advanced(t->a, t->b, t->c, texture, cmd->prim.world_normal, cmd->prim.world_position, light);
+          render_triangle_advanced(t->a, t->b, t->c, texture, cmd->prim.world_normal, cmd->prim.world_position, cmd->prim.light);
         }
         break;
       }
       case RENDER_CMD_SET_TEXTURE: {
-        if (renderer.render_texture_count < MAX_RENDER_TEXTURES) {
-          renderer.textures[renderer.render_texture_count++] = cmd->texture;
-        }
-        current_texture = cmd->texture;
+        ASSERT(!"don't use this");
+        // if (renderer.render_texture_count < MAX_RENDER_TEXTURES) {
+        //   renderer.textures[renderer.render_texture_count++] = cmd->texture;
+        // }
+        // current_texture = cmd->texture;
         break;
       }
       case RENDER_CMD_ENABLE_DEPTH_TEST: {
@@ -357,7 +359,8 @@ void process_render_commands(void) {
         break;
       }
       case RENDER_CMD_SET_LIGHT: {
-        light = cmd->light;
+        // light = cmd->light;
+        ASSERT(!"don't use this");
       }
       default:
         break;
@@ -671,12 +674,12 @@ void render_triangle_advanced(Vertex a, Vertex b, Vertex c, const Texture* textu
 
   for (i32 y = bb.y1; y < bb.y2; ++y) {
     i32 x = bb.x1;
-    for (; x < bb.x2; ++x) {
-      f32* zvalue = get_zbuffer_addr(x, y);
+    Color* target = get_pixel_addr(x, y);
+    f32* zvalue = get_zbuffer_addr(x, y);
+    for (; x < bb.x2; ++x, ++target, ++zvalue) {
       i32 u1, u2, det = 0;
       // TODO: use v3_barycentric here instead
       if (barycentric(a.p.x, a.p.y, b.p.x, b.p.y, c.p.x, c.p.y, x, y, &u1, &u2, &det)) {
-        Color* target = get_pixel_addr(x, y);
         f32 w1 = 0, w2 = 0, w3 = 0;
         if (det != 0) {
           w1 = u1 / (f32)det;
@@ -704,9 +707,9 @@ void render_triangle_advanced(Vertex a, Vertex b, Vertex c, const Texture* textu
 #ifndef NO_TEXTURES
         if (renderer.texture_mapping) {
           v2 uv = v2_cartesian(a.uv, b.uv, c.uv, w1, w2, w3);
-          i32 x_coord = (ABS(i32, texture->width * uv.x)) % texture->width;
-          i32 y_coord = (ABS(i32, texture->height * uv.y)) % texture->height;
-          texel = texture_get_pixel(texture, x_coord, y_coord);
+          i32 x_coord = ABS(i32, texture->width * uv.x);
+          i32 y_coord = ABS(i32, texture->height * uv.y);
+          texel = texture_get_pixel_wrapped(texture, x_coord, y_coord);
         }
 #endif
         texel.r *= light_contrib;
@@ -903,8 +906,14 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
   Vertex output[MAX_VERTEX_OUTPUT] = {0};
   Vertex* clip_buffer[2] = { input, output };
 #ifndef NO_RENDER_COMMANDS
-  push_render_command((Render_command) { .type = RENDER_CMD_SET_LIGHT, .light = light, });
-  push_render_command((Render_command) { .type = RENDER_CMD_SET_TEXTURE, .texture = *texture, });
+  // {
+  //   Render_command cmd = (Render_command) { .type = RENDER_CMD_SET_LIGHT, .light = light, };
+  //   push_render_command(&cmd);
+  // }
+  // {
+  //   Render_command cmd = (Render_command) { .type = RENDER_CMD_SET_TEXTURE, .texture = *texture, };
+  //   push_render_command(&cmd);
+  // }
 #endif
 
   // proj * view * model * pos
@@ -937,7 +946,7 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
 
     v3 wline1 = v3_sub(vp[1], vp[0]);
     v3 wline2 = v3_sub(vp[2], vp[0]);
-    v3 world_normal = v3_normalize(v3_cross(wline1, wline2));
+    v3 world_normal = v3_normalize_fast(v3_cross(wline1, wline2));
 
     // backface culling
     if (v3_dot(world_normal, V3_OP(camera.pos, vp[0], -)) < 0.0f) {
@@ -957,7 +966,7 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
 
     v3 line1 = v3_sub(vt[1], vt[0]);
     v3 line2 = v3_sub(vt[2], vt[0]);
-    v3 view_normal = v3_normalize(v3_cross(line1, line2));
+    v3 view_normal = v3_normalize_fast(v3_cross(line1, line2));
 
     // ndc
     vt[0] = v3_div_scalar(vt[0], vt[0].w);
@@ -1033,11 +1042,13 @@ void render_mesh(Mesh* mesh, Texture* texture, v3 position, v3 size, v3 rotation
           .triangle = (Triangle) {
             first, clipped[vertex_index], clipped[vertex_index + 1],
           },
+          .texture = *texture,
+          .light = light,
           .world_normal = world_normal,
           .world_position = pos,
         },
       };
-      push_render_command(cmd);
+      push_render_command(&cmd);
 #else
       render_triangle_advanced(first, clipped[vertex_index], clipped[vertex_index + 1], texture, world_normal, pos, light);
 #endif

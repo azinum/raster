@@ -3,3 +3,5 @@
 *.wat
 include/assets.h
 raster
+perf.data
+perf.data.old
