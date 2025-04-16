@@ -6,7 +6,7 @@ CC=gcc
 
 PROG=bintoc
 
-FLAGS=-o ${PROG} -Wall -O3
+FLAGS=-o ${PROG} -Wall -O3 -Wall
 
 SRC=bintoc.c
 

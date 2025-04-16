@@ -58,7 +58,6 @@ If all went well, you should have raster and raster.wasm.
 | 2                        | Increase light strength                                                          |
 | 3                        | Decrease light radius                                                            |
 | 4                        | Increase light radius                                                            |
-| 5                        | Toggle GI debug view (if available, `VOXELGI` is defined)                        |
 | 6                        | Toggle dithering                                                                 |
 | 7                        | Toggle fog                                                                       |
 | 8                        | Toggle depth test                                                                |

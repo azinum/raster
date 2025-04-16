@@ -4,7 +4,6 @@
 // #define NO_LIGHTING
 // #define UNIFORM_LIGHTING_POSITION
 // #define NO_TEXTURES
-// #define VOXELGI
 // #define NO_RENDER_COMMANDS
 // #define NO_NORMAL_BUFFER
 
@@ -12,10 +11,6 @@
 
 #define MAX_RENDER_COMMANDS (1024*4)
 #define MAX_RENDER_TEXTURES (8)
-
-#ifdef VOXELGI
-static Vsample voxelgi_samples[VOXELGI_VOXEL_COUNT] = {0};
-#endif
 
 #ifndef NO_RENDER_COMMANDS
 typedef enum Render_command_type {
@@ -74,10 +69,6 @@ typedef struct Renderer {
   size_t render_command_count;
   Texture textures[MAX_RENDER_TEXTURES];
   size_t render_texture_count;
-#endif
-
-#ifdef VOXELGI
-  Voxelgi gi;
 #endif
 } Renderer;
 
@@ -401,9 +392,6 @@ void renderer_init(Color* color_buffer, Color* clear_buffer, u32 width, u32 heig
     renderer.clear_normal_buffer[i] = COLOR_RGB(0, 0, 0);
   }
   memcpy(&renderer.normal_buffer[0], &renderer.clear_normal_buffer[0], sizeof(Color) * width * height);
-#ifdef VOXELGI
-  renderer.gi = voxelgi_init(VOXELGI_POS, VOXELGI_X, VOXELGI_Y, VOXELGI_Z, voxelgi_samples);
-#endif
 }
 
 void renderer_set_blend_mode(Blend mode) {
@@ -662,14 +650,6 @@ void render_triangle_advanced(Vertex a, Vertex b, Vertex c, const Texture* textu
   f32 light_contribs[3] = {
     1, 1, 1
   };
-#endif
-
-#ifdef VOXELGI
-    voxelgi_update_voxel(&renderer.gi, world_position, world_normal, 1/3.0f * (light_contribs[0] + light_contribs[1] + light_contribs[2]), renderer.dt);
-    f32 gi_contrib = voxelgi_get_voxel_weight(&renderer.gi, world_position);
-    light_contribs[0] *= gi_contrib;
-    light_contribs[1] *= gi_contrib;
-    light_contribs[2] *= gi_contrib;
 #endif
 
   for (i32 y = bb.y1; y < bb.y2; ++y) {
@@ -1116,9 +1096,6 @@ void renderer_begin_frame(f32 dt) {
   renderer.render_texture_count = 0;
 #endif
   renderer.dt = dt;
-#ifdef VOXELGI
-  voxelgi_update(&renderer.gi, dt);
-#endif
 }
 
 void renderer_draw(void) {
@@ -1211,10 +1188,6 @@ void renderer_end_frame(void) {
     }
   }
 #endif
-
-#ifdef VOXELGI
-  voxelgi_render(&renderer.gi);
-#endif
 }
 
 void renderer_clear(void) {
@@ -1253,10 +1226,6 @@ void renderer_toggle_render_zbuffer(void) {
 void renderer_toggle_render_normal_buffer(void) {
   renderer.render_normal_buffer = !renderer.render_normal_buffer;
   renderer.render_zbuffer &= !renderer.render_normal_buffer;
-}
-
-void renderer_toggle_render_voxels(void) {
-  VOXELGI_RENDER_VOXELS = !VOXELGI_RENDER_VOXELS;
 }
 
 void renderer_toggle_texture_mapping(void) {

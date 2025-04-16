@@ -3,7 +3,7 @@
 set -xe
 
 OPT=-O3
-clang \
+clang-18 \
 	${OPT} \
 	--target=wasm32 \
 	-fvectorize \
@@ -34,14 +34,17 @@ clang \
 	-ffast-math \
 	-Wall \
 	-Wno-missing-braces \
-	-fopenmp=libomp \
 	-Iinclude \
 	-Ideps/common.h \
 	src/main.c \
 	-o raster \
 	`pkg-config --libs --cflags sdl2` \
 	-lm \
+	-DNO_OMP \
 	-DNO_NORMAL_BUFFER \
 	-DNO_SIMD \
+	-g \
 	&& \
 	strip raster
+
+# -fopenmp=libomp

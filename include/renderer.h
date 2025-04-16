@@ -118,7 +118,6 @@ void renderer_toggle_dither(void);
 void renderer_toggle_depth_test(void);
 void renderer_toggle_render_zbuffer(void);
 void renderer_toggle_render_normal_buffer(void);
-void renderer_toggle_render_voxels(void);
 void renderer_toggle_texture_mapping(void);
 
 #endif // _RENDERER_H

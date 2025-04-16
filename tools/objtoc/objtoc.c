@@ -267,7 +267,6 @@ Result objtoc(Mesh* mesh, const char* name) {
     printf("%u,", v);
   }
   printf("};\n");
-
   printf(
     "Mesh %s = {\n"
     "  .vertex_count = %u,\n"

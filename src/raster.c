@@ -24,9 +24,6 @@
 #include "mesh.h"
 #include "assets.h"
 #include "light.h"
-#ifdef VOXELGI
-  #include "voxelgi.h"
-#endif
 #include "renderer.h"
 #include "window.h"
 
@@ -36,9 +33,6 @@
 #include "camera.c"
 #include "mesh.c"
 #include "light.c"
-#ifdef VOXELGI
-  #include "voxelgi.c"
-#endif
 #include "renderer.c"
 #include "window.c"
 
@@ -104,7 +98,7 @@ i32 raster_main(i32 argc, char** argv) {
       dt = dt * !(dt > DT_MAX);
       update_and_render(dt);
       window_render();
-      snprintf(title, MAX_TITLE_LEN, "Raster | %g fps (%g/%g) | %.4f dt", (1.0f / dt), 1/game.dt_min, 1/game.dt_max, dt);
+      snprintf(title, MAX_TITLE_LEN, "Raster | %g fps | %.4f dt", (1.0f / dt), dt);
       window_set_title(title);
       clear_input_events();
     }
@@ -236,9 +230,6 @@ void update_and_render(f32 dt) {
   if (input.key_down[KEY_K]) {
     game.light.pos.y -= speed * dt;
   }
-  if (input.key_pressed[KEY_5]) {
-    renderer_toggle_render_voxels();
-  }
   if (input.key_pressed[KEY_6]) {
     renderer_toggle_dither();
   }
@@ -268,7 +259,6 @@ void update_and_render(f32 dt) {
 
   render_mesh(&room_floor, &t_tile_23, V3(0, 0, 0), V3(1, 1, 1), V3(0, 0, 0), game.light);
   render_mesh(&room, &t_brick_6, V3(0, 0, 0), V3(1, 1, 1), V3(0, 0, 0), game.light);
-  render_mesh(&pipes, &t_pipe, V3(0, 0, 0), V3(1, 1, 1), V3(0, 0, 0), game.light);
   {
     f32 size = 1;
     render_mesh(&cube, &t_brick_6, V3(0, 1.5f * sinf(game.timer * 0.8f), -6), V3(size, size, size), V3(game.timer * 42, 100 + game.timer * 30, 200 + game.timer * 40), game.light);
@@ -286,9 +276,9 @@ void update_and_render(f32 dt) {
     static char text[256] = {0};
     static size_t length = 0;
     if ((game.tick % 4) == 0) {
-      length = snprintf(text, sizeof(text), "%.3g ms\nprimitives: %d\n%g ms", 1000 * dt, renderer_get_num_primitives(), time_to_render * 1000);
+      length = snprintf(text, sizeof(text), "%.d fps\nprimitives: %d\n%g ms", (i32)(1.0f / dt), renderer_get_num_primitives(), time_to_render * 1000);
     }
-    render_text(text, length, 2, 2, 1, COLOR_RGB(130, 100, 255));
+    render_text(text, length, 2, 2, 1, COLOR_RGB(255, 255, 255));
   }
   // render_axis(V3(0, 0, 0));
   // render_texture_3d(&t_sun_icon, game.light.pos, 24, 24, COLOR_RGB(255, 0, 255), COLOR_RGB(255, 255, 100));
